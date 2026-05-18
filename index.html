@@ -1,324 +1,782 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>A-Frame + 8th Wall Examples</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ELIZABETH SIDDALL — COLD EVIDENCE</title>
+
+  <!-- ─── 8th Wall / A-Frame stack ─── -->
+  <script src="https://cdn.8thwall.com/web/aframe/8frame-1.3.0.min.js"></script>
+  <script src="https://cdn.8thwall.com/web/xrextras/xrextras.js"></script>
+  <script async src="engine/xr.js" data-preload-chunks="slam"></script>
+
+  <!-- ─── Google Fonts ─── -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital@0;1&display=swap" rel="stylesheet">
+
   <style>
+    /* ── CSS Variables ── */
+    :root {
+      --cold-blue: #0a1628;
+      --ice: #5ab4d6;
+      --thermal-hot: #ff4500;
+      --thermal-warm: #ffa500;
+      --thermal-cold: #1a3a6e;
+      --white: #f0ede8;
+      --red-alert: #c0392b;
+      --font-mono: 'Courier Prime', monospace;
+      --font-serif: 'Playfair Display', serif;
+    }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0d1117;
-      color: #e6edf3;
+      background: var(--cold-blue);
+      color: var(--white);
+      font-family: var(--font-mono);
       min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ══════════════════════════════════════
+       LANDING PAGE — shown before AR starts
+       ══════════════════════════════════════ */
+    #landing {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: var(--cold-blue);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
       padding: 2rem;
-    }
-
-    h1 {
       text-align: center;
-      font-size: 2rem;
-      margin-bottom: 0.5rem;
+      transition: opacity 0.8s ease;
+    }
+    #landing.hidden {
+      opacity: 0;
+      pointer-events: none;
     }
 
-    .subtitle {
-      text-align: center;
-      color: #8b949e;
-      margin-bottom: 2.5rem;
-    }
-
-    .section-title {
-      text-align: center;
-      margin: 2.5rem auto 0.3rem;
-      max-width: 960px;
-      font-size: 1.2rem;
-      color: #8b949e;
-    }
-
-    .section-desc {
-      text-align: center;
-      color: #6e7681;
-      font-size: 0.85rem;
-      margin-bottom: 1.5rem;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 1.25rem;
-      max-width: 960px;
-      margin: 0 auto;
-    }
-
-    .card {
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 10px;
-      padding: 1.5rem;
-      text-decoration: none;
-      color: inherit;
-      transition: border-color 0.2s, transform 0.2s;
-    }
-
-    .card:hover {
-      transform: translateY(-2px);
-    }
-
-    .card.blue:hover { border-color: #58a6ff; }
-    .card.orange:hover { border-color: #f0883e; }
-    .card.green:hover { border-color: #3fb950; }
-    .card.purple:hover { border-color: #bc8cff; }
-
-    .card-number {
+    .stamp {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.25em;
+      color: var(--red-alert);
+      border: 2px solid var(--red-alert);
+      padding: 0.3rem 0.8rem;
+      text-transform: uppercase;
+      margin-bottom: 2rem;
+      transform: rotate(-2deg);
       display: inline-block;
-      color: #0d1117;
-      font-weight: 700;
-      font-size: 0.85rem;
-      width: 2rem;
-      height: 2rem;
-      line-height: 2rem;
-      text-align: center;
-      border-radius: 6px;
-      margin-bottom: 0.75rem;
     }
 
-    .badge-blue   { background: #58a6ff; }
-    .badge-orange { background: #f0883e; }
-    .badge-green  { background: #3fb950; }
-    .badge-purple { background: #bc8cff; }
-
-    .card-title {
-      font-size: 1.1rem;
-      font-weight: 600;
+    .title-block { margin-bottom: 2.5rem; }
+    .title-block h1 {
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: clamp(2rem, 8vw, 3.5rem);
+      line-height: 1.05;
+      color: var(--white);
       margin-bottom: 0.4rem;
     }
-
-    .card-path {
-      font-size: 0.8rem;
-      color: #8b949e;
-      font-family: monospace;
+    .title-block h2 {
+      font-family: var(--font-mono);
+      font-size: clamp(0.6rem, 2vw, 0.75rem);
+      letter-spacing: 0.3em;
+      color: var(--ice);
+      text-transform: uppercase;
     }
+
+    .divider {
+      width: 60px;
+      height: 1px;
+      background: var(--ice);
+      margin: 1.5rem auto;
+      opacity: 0.5;
+    }
+
+    .case-info {
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      color: rgba(240,237,232,0.5);
+      text-transform: uppercase;
+      line-height: 2;
+      margin-bottom: 2.5rem;
+    }
+    .case-info span { color: var(--ice); }
+
+    .instruction-box {
+      background: rgba(90, 180, 214, 0.06);
+      border: 1px solid rgba(90, 180, 214, 0.25);
+      border-radius: 2px;
+      padding: 1.5rem;
+      max-width: 340px;
+      margin-bottom: 2rem;
+    }
+    .instruction-box p {
+      font-size: 0.75rem;
+      line-height: 1.7;
+      color: rgba(240,237,232,0.75);
+    }
+    .instruction-box strong { color: var(--ice); }
+
+    .btn-launch {
+      background: none;
+      border: 1px solid var(--ice);
+      color: var(--ice);
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      padding: 0.9rem 2.2rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .btn-launch:hover {
+      background: var(--ice);
+      color: var(--cold-blue);
+    }
+
+    .temp-indicator {
+      position: absolute;
+      bottom: 2rem;
+      right: 2rem;
+      font-size: 0.6rem;
+      color: var(--thermal-cold);
+      letter-spacing: 0.1em;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
+
+    /* ══════════════════════════════════════
+       OVERLAY HUD — shown during AR
+       ══════════════════════════════════════ */
+    #hud {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      pointer-events: none;
+      display: none;
+    }
+    #hud.visible { display: block; }
+
+    /* Thermal frame corners */
+    .corner {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border-color: var(--ice);
+      border-style: solid;
+      opacity: 0.7;
+    }
+    .corner-tl { top: 20px; left: 20px; border-width: 2px 0 0 2px; }
+    .corner-tr { top: 20px; right: 20px; border-width: 2px 2px 0 0; }
+    .corner-bl { bottom: 20px; left: 20px; border-width: 0 0 2px 2px; }
+    .corner-br { bottom: 20px; right: 20px; border-width: 0 2px 2px 0; }
+
+    /* Thermal temperature scale */
+    #temp-scale {
+      position: absolute;
+      right: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 18px;
+      height: 180px;
+      background: linear-gradient(to bottom,
+        #ff0000, #ff4500, #ff8c00, #ffd700,
+        #7fff00, #00bfff, #1a3a6e, #05101f
+      );
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    #temp-scale::before {
+      content: '°C';
+      position: absolute;
+      top: -20px;
+      left: -4px;
+      font-size: 0.55rem;
+      color: var(--white);
+      font-family: var(--font-mono);
+    }
+    #temp-scale::after {
+      content: '37\a0\a0\a0\a0\a0\a0\a0\a0\a00';
+      position: absolute;
+      top: 0;
+      right: 22px;
+      font-size: 0.5rem;
+      color: var(--white);
+      font-family: var(--font-mono);
+      white-space: pre;
+      line-height: 1.8;
+    }
+
+    /* Status bar top */
+    #status-bar {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      letter-spacing: 0.2em;
+      color: var(--ice);
+      text-transform: uppercase;
+      text-align: center;
+      pointer-events: none;
+    }
+    #status-bar .rec {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--red-alert);
+      margin-right: 6px;
+      animation: blink 1s infinite;
+      vertical-align: middle;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* Clinical note bottom */
+    #clinical-note {
+      position: absolute;
+      bottom: 40px;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: center;
+      pointer-events: none;
+    }
+    #clinical-note-inner {
+      background: rgba(10, 22, 40, 0.82);
+      border: 1px solid rgba(90, 180, 214, 0.3);
+      padding: 0.8rem 1.2rem;
+      max-width: 320px;
+      text-align: center;
+      transition: opacity 1s ease;
+    }
+    #clinical-note-inner.hidden { opacity: 0; }
+    #clinical-note h3 {
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      letter-spacing: 0.3em;
+      color: var(--red-alert);
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+    #clinical-note p {
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: 0.8rem;
+      line-height: 1.5;
+      color: rgba(240,237,232,0.85);
+    }
+
+    /* Lost-target overlay */
+    #scan-prompt {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      background: rgba(10, 22, 40, 0.7);
+      transition: opacity 0.5s;
+    }
+    #scan-prompt.hidden { opacity: 0; pointer-events: none; }
+    #scan-prompt p {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      letter-spacing: 0.2em;
+      color: var(--ice);
+      text-transform: uppercase;
+    }
+    .scan-ring {
+      width: 80px;
+      height: 80px;
+      border: 2px solid var(--ice);
+      border-radius: 50%;
+      border-top-color: transparent;
+      animation: spin 1.5s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
+
+  <!-- ─── Configure image target ─── -->
+  <script>
+    // ════════════════════════════════════════════════════════════
+    // CONFIGURATION — replace "Ophelia_target.jpg" with your
+    // actual Ophelia print image file placed in assets/
+    // Update width/height to match your image pixel dimensions.
+    // ════════════════════════════════════════════════════════════
+    const TARGET_IMAGE  = "assets/Ophelia_target.jpg";
+    const TARGET_W      = 640;   // pixels
+    const TARGET_H      = 480;   // pixels
+    const TARGET_NAME   = "ophelia-print";
+
+    const onxrloaded = () => {
+      XR8.XrController.configure({
+        imageTargetData: [{
+          name: TARGET_NAME,
+          type: "PLANAR",
+          imagePath: TARGET_IMAGE,
+          properties: {
+            left: 0, top: 0,
+            width: TARGET_W,
+            height: TARGET_H,
+            originalWidth: TARGET_W,
+            originalHeight: TARGET_H,
+            isRotated: false
+          }
+        }]
+      });
+    };
+    window.XR8 ? onxrloaded() : window.addEventListener("xrloaded", onxrloaded);
+  </script>
+
+  <!-- ─── Chromakey / thermal GLSL shader (reused from example 05) ─── -->
+  <script>
+    // Custom A-Frame component: thermal-plane
+    // Renders the Ophelia image with a simulated thermal colour LUT.
+    AFRAME.registerShader("thermal-lut", {
+      schema: {
+        src:     { type: "map" },
+        time:    { type: "time", is: "uniform" },
+        opacity: { type: "number", default: 1, is: "uniform" }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D src;
+        uniform float time;
+        uniform float opacity;
+        varying vec2 vUv;
+
+        // Simple luminance-to-thermal palette
+        vec3 thermalColor(float lum, vec2 uv) {
+          // Lower half = water zone → intensely cold (blue)
+          float waterMask = smoothstep(0.3, 0.7, uv.y);
+
+          // Simulate body losing heat: body appears cool-white, water deep blue
+          vec3 hot  = vec3(1.0, 0.27, 0.0);    // orange-red  (plants, warm)
+          vec3 warm = vec3(1.0, 0.65, 0.0);    // amber
+          vec3 cool = vec3(0.0, 0.75, 1.0);    // cyan-blue   (transition)
+          vec3 cold = vec3(0.0, 0.15, 0.55);   // deep blue   (water)
+          vec3 body = vec3(0.85, 0.9, 1.0);    // white-blue  (body losing heat)
+
+          // Blend based on luminance
+          vec3 colour;
+          if (lum > 0.72) {
+            colour = mix(warm, hot, (lum - 0.72) / 0.28);
+          } else if (lum > 0.5) {
+            colour = mix(cool, warm, (lum - 0.5) / 0.22);
+          } else if (lum > 0.35) {
+            // Body zone approximation: centre of image vertically
+            float bodyZone = smoothstep(0.35, 0.65, uv.y) * (1.0 - smoothstep(0.1, 0.45, abs(uv.x - 0.5)));
+            colour = mix(cold, body, bodyZone * (1.0 - (lum - 0.35) / 0.15));
+          } else {
+            colour = cold;
+          }
+
+          // Water: override lower region to very cold blue
+          colour = mix(colour, cold * 0.5, waterMask * (1.0 - lum));
+
+          // Gentle pulse on the body (heat dissipation)
+          float dissipate = 0.05 * sin(time * 0.001 + uv.y * 8.0);
+          colour = clamp(colour + dissipate, 0.0, 1.0);
+
+          return colour;
+        }
+
+        void main() {
+          vec4 px  = texture2D(src, vUv);
+          float lum = dot(px.rgb, vec3(0.299, 0.587, 0.114));
+          vec3  tc  = thermalColor(lum, vUv);
+          gl_FragColor = vec4(tc, opacity);
+        }
+      `
+    });
+
+    // A-Frame component to handle image-found / lost events and audio
+    AFRAME.registerComponent("ophelia-ar", {
+      init() {
+        this.found   = false;
+        this.audioStream  = null;  // ambient outdoor stream
+        this.audioDrip    = null;  // indoor bathtub drip
+        this.clinicalNote = document.getElementById("clinical-note-inner");
+        this.scanPrompt   = document.getElementById("scan-prompt");
+        this.hud          = document.getElementById("hud");
+
+        this._onFound = this._onFound.bind(this);
+        this._onLost  = this._onLost.bind(this);
+        this.el.sceneEl.addEventListener("xrimagefound", this._onFound);
+        this.el.sceneEl.addEventListener("xrimagelost",  this._onLost);
+
+        // Build procedural audio via Web Audio API
+        this._buildAudio();
+      },
+
+      _buildAudio() {
+        try {
+          const ctx = new (window.AudioContext || window.webkitAudioContext)();
+          this._ctx = ctx;
+
+          // ── OUTDOOR STREAM (brown noise + reverb) ──
+          const streamBuffer = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate);
+          const data = streamBuffer.getChannelData(0);
+          let b0=0, b1=0, b2=0, b3=0, b4=0, b5=0, b6=0;
+          for (let i = 0; i < data.length; i++) {
+            const w = Math.random() * 2 - 1;
+            b0 = 0.99886*b0 + w*0.0555179; b1 = 0.99332*b1 + w*0.0750759;
+            b2 = 0.96900*b2 + w*0.1538520; b3 = 0.86650*b3 + w*0.3104856;
+            b4 = 0.55000*b4 + w*0.5329522; b5 = -0.7616*b5 - w*0.0168980;
+            data[i] = (b0+b1+b2+b3+b4+b5+b6+w*0.5362) * 0.11;
+            b6 = w * 0.115926;
+          }
+          this._streamBuf = streamBuffer;
+
+          // Convolution reverb for outdoor feel
+          const convLen = ctx.sampleRate * 1.5;
+          const convBuf = ctx.createBuffer(2, convLen, ctx.sampleRate);
+          for (let ch = 0; ch < 2; ch++) {
+            const d = convBuf.getChannelData(ch);
+            for (let i = 0; i < convLen; i++) {
+              d[i] = (Math.random()*2-1) * Math.pow(1 - i/convLen, 2);
+            }
+          }
+          this._convBuf = convBuf;
+
+          // Low-pass filter (stream is mellow)
+          this._lpf = ctx.createBiquadFilter();
+          this._lpf.type = "lowpass";
+          this._lpf.frequency.value = 800;
+
+          this._streamGain = ctx.createGain();
+          this._streamGain.gain.value = 0;
+
+          const conv = ctx.createConvolver();
+          conv.buffer = convBuf;
+          this._lpf.connect(conv);
+          conv.connect(this._streamGain);
+          this._streamGain.connect(ctx.destination);
+
+          this._drips = [];
+          this._dripGain = ctx.createGain();
+          this._dripGain.gain.value = 0;
+          this._dripGain.connect(ctx.destination);
+
+        } catch(e) {
+          console.warn("Audio context error", e);
+        }
+      },
+
+      _startStream() {
+        if (!this._ctx) return;
+        if (this._ctx.state === "suspended") this._ctx.resume();
+
+        // Loop outdoor stream
+        if (this._streamSrc) { this._streamSrc.stop(); }
+        this._streamSrc = this._ctx.createBufferSource();
+        this._streamSrc.buffer = this._streamBuf;
+        this._streamSrc.loop = true;
+        this._streamSrc.connect(this._lpf);
+        this._streamSrc.start();
+
+        // Fade in stream
+        this._streamGain.gain.cancelScheduledValues(this._ctx.currentTime);
+        this._streamGain.gain.linearRampToValueAtTime(0.45, this._ctx.currentTime + 1.5);
+
+        // After 5s → TWIST: fade stream out, start drip
+        this._twistTimeout = setTimeout(() => this._startTwist(), 5000);
+      },
+
+      _startTwist() {
+        if (!this._ctx) return;
+        const now = this._ctx.currentTime;
+
+        // Fade out outdoor stream
+        this._streamGain.gain.linearRampToValueAtTime(0, now + 2);
+        this._dripGain.gain.linearRampToValueAtTime(0.7, now + 2);
+
+        // Update clinical note
+        this.clinicalNote.innerHTML = `
+          <h3>— Elizabeth Siddall — 1851 —</h3>
+          <p>Oil lamps extinguished.<br>Core temperature: <em>declining</em>.<br>Exposure duration: unknown.</p>
+        `;
+
+        // Start rhythmic drip (metallic, echoing)
+        this._scheduleDrips();
+      },
+
+      _scheduleDrips() {
+        if (!this._ctx) return;
+        const interval = 1400; // ms between drips — slow, monotonous
+        this._dripInterval = setInterval(() => {
+          this._playDrip();
+        }, interval);
+        this._playDrip(); // immediate first drip
+      },
+
+      _playDrip() {
+        if (!this._ctx) return;
+        const now = this._ctx.currentTime;
+        const osc = this._ctx.createOscillator();
+        const env = this._ctx.createGain();
+
+        osc.type = "sine";
+        osc.frequency.value = 880 + Math.random() * 120;
+
+        env.gain.setValueAtTime(0, now);
+        env.gain.linearRampToValueAtTime(0.3, now + 0.01);
+        env.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+
+        // Simple room echo
+        const delay = this._ctx.createDelay();
+        delay.delayTime.value = 0.25;
+        const dFeedback = this._ctx.createGain();
+        dFeedback.gain.value = 0.45;
+        delay.connect(dFeedback);
+        dFeedback.connect(delay);
+
+        osc.connect(env);
+        env.connect(this._dripGain);
+        env.connect(delay);
+        delay.connect(this._dripGain);
+
+        osc.start(now);
+        osc.stop(now + 1);
+      },
+
+      _stopAudio() {
+        if (this._streamSrc) this._streamSrc.stop();
+        if (this._twistTimeout) clearTimeout(this._twistTimeout);
+        if (this._dripInterval) clearInterval(this._dripInterval);
+        if (this._streamGain) this._streamGain.gain.value = 0;
+        if (this._dripGain)   this._dripGain.gain.value   = 0;
+      },
+
+      _onFound(evt) {
+        if (evt.detail.name !== TARGET_NAME) return;
+        this.found = true;
+        this.scanPrompt.classList.add("hidden");
+        this.clinicalNote.classList.remove("hidden");
+
+        // Reset clinical note text
+        this.clinicalNote.innerHTML = `
+          <h3>— Thermal Imaging Active —</h3>
+          <p>Scanning body heat dissipation…<br>Water temperature: <em>critical</em>.</p>
+        `;
+
+        this._startStream();
+      },
+
+      _onLost(evt) {
+        if (evt.detail.name !== TARGET_NAME) return;
+        this.found = false;
+        this.scanPrompt.classList.remove("hidden");
+        this._stopAudio();
+      },
+
+      remove() {
+        this._stopAudio();
+        this.el.sceneEl.removeEventListener("xrimagefound", this._onFound);
+        this.el.sceneEl.removeEventListener("xrimagelost",  this._onLost);
+      }
+    });
+  </script>
 </head>
+
 <body>
-  <h1>A-Frame + 8th Wall Examples</h1>
-  <p class="subtitle">Click a card to open the example</p>
 
-  <!-- ================================================================
-       IMAGE TARGET — A-Frame (8frame)
-       ================================================================ -->
-  <h2 class="section-title" style="margin-top: 0;">Image Target — A-Frame (8frame)</h2>
-  <p class="section-desc">Uses 8frame 1.3.0 (A-Frame fork) with Three.js r137 — declarative HTML approach</p>
+  <!-- ══════════════════════════════════════
+       LANDING PAGE
+       ══════════════════════════════════════ -->
+  <div id="landing">
+    <div class="stamp">Dossier Médical Confidentiel</div>
 
-  <div class="grid">
-    <a class="card blue" href="image_target_8thFrame/01_primitives.html">
-      <span class="card-number badge-blue">01</span>
-      <div class="card-title">Primitives</div>
-      <div class="card-path">image_target_8thFrame/01_primitives.html</div>
-    </a>
-    <a class="card blue" href="image_target_8thFrame/02_text_msdf.html">
-      <span class="card-number badge-blue">02</span>
-      <div class="card-title">Text MSDF</div>
-      <div class="card-path">image_target_8thFrame/02_text_msdf.html</div>
-    </a>
-    <a class="card blue" href="image_target_8thFrame/03_images.html">
-      <span class="card-number badge-blue">03</span>
-      <div class="card-title">Images</div>
-      <div class="card-path">image_target_8thFrame/03_images.html</div>
-    </a>
-    <a class="card blue" href="image_target_8thFrame/04_3d_models.html">
-      <span class="card-number badge-blue">04</span>
-      <div class="card-title">3D Models</div>
-      <div class="card-path">image_target_8thFrame/04_3d_models.html</div>
-    </a>
-    <a class="card blue" href="image_target_8thFrame/05_video_chroma.html">
-      <span class="card-number badge-blue">05</span>
-      <div class="card-title">Video Chroma</div>
-      <div class="card-path">image_target_8thFrame/05_video_chroma.html</div>
-    </a>
-    <a class="card blue" href="image_target_8thFrame/06_audio.html">
-      <span class="card-number badge-blue">06</span>
-      <div class="card-title">Audio</div>
-      <div class="card-path">image_target_8thFrame/06_audio.html</div>
-    </a>
-    <a class="card blue" href="image_target_8thFrame/07_p5js.html">
-      <span class="card-number badge-blue">07</span>
-      <div class="card-title">p5.js</div>
-      <div class="card-path">image_target_8thFrame/07_p5js.html</div>
-    </a>
-    <a class="card blue" href="image_target_8thFrame/08_gaussian_splat.html">
-      <span class="card-number badge-blue">08</span>
-      <div class="card-title">Gaussian Splat</div>
-      <div class="card-path">image_target_8thFrame/08_gaussian_splat.html</div>
-    </a>
-    <a class="card blue" href="image_target_8thFrame/09_multi_targets.html">
-      <span class="card-number badge-blue">09</span>
-      <div class="card-title">Multi Targets</div>
-      <div class="card-path">image_target_8thFrame/09_multi_targets.html</div>
-    </a>
+    <div class="title-block">
+      <h1>Ophelia</h1>
+      <h2>Evidence Archive — 1851</h2>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="case-info">
+      <div>Sujet : <span>Elizabeth Siddall</span></div>
+      <div>Artiste : <span>J.E. Millais</span></div>
+      <div>Durée d'exposition : <span>Non déterminée</span></div>
+      <div>Diagnostic : <span>Risque d'hypothermie</span></div>
+    </div>
+
+    <div class="instruction-box">
+      <p>
+        Pointez votre appareil photo sur l'impression<br>
+        <strong>Ophelia</strong> du dossier médical.<br><br>
+        L'imagerie thermique activera automatiquement.<br>
+        <strong>Activez le son.</strong>
+      </p>
+    </div>
+
+    <button class="btn-launch" id="btn-launch">
+      ↳ Activer la caméra AR
+    </button>
+
+    <div class="temp-indicator">TEMP CORE ↓ 35.1°C</div>
   </div>
 
-  <!-- ================================================================
-       IMAGE TARGET — Raw Three.js r178
-       ================================================================ -->
-  <h2 class="section-title">Image Target — Raw Three.js r178</h2>
-  <p class="section-desc">Same examples rewritten with raw Three.js + XR8 pipeline hooks — enables Spark.js Gaussian Splatting</p>
+  <!-- ══════════════════════════════════════
+       HUD OVERLAY (visible during AR)
+       ══════════════════════════════════════ -->
+  <div id="hud" class="visible">
+    <div class="corner corner-tl"></div>
+    <div class="corner corner-tr"></div>
+    <div class="corner corner-bl"></div>
+    <div class="corner corner-br"></div>
 
-  <div class="grid">
-    <a class="card orange" href="image_target_Threejs/01_primitives.html">
-      <span class="card-number badge-orange">01</span>
-      <div class="card-title">Primitives</div>
-      <div class="card-path">image_target_Threejs/01_primitives.html</div>
-    </a>
-    <a class="card orange" href="image_target_Threejs/02_text_msdf.html">
-      <span class="card-number badge-orange">02</span>
-      <div class="card-title">Text &amp; Fonts</div>
-      <div class="card-path">image_target_Threejs/02_text_msdf.html</div>
-    </a>
-    <a class="card orange" href="image_target_Threejs/03_images.html">
-      <span class="card-number badge-orange">03</span>
-      <div class="card-title">Images</div>
-      <div class="card-path">image_target_Threejs/03_images.html</div>
-    </a>
-    <a class="card orange" href="image_target_Threejs/04_3d_models.html">
-      <span class="card-number badge-orange">04</span>
-      <div class="card-title">3D Models</div>
-      <div class="card-path">image_target_Threejs/04_3d_models.html</div>
-    </a>
-    <a class="card orange" href="image_target_Threejs/05_video_chroma.html">
-      <span class="card-number badge-orange">05</span>
-      <div class="card-title">Video Chroma</div>
-      <div class="card-path">image_target_Threejs/05_video_chroma.html</div>
-    </a>
-    <a class="card orange" href="image_target_Threejs/06_audio.html">
-      <span class="card-number badge-orange">06</span>
-      <div class="card-title">Audio</div>
-      <div class="card-path">image_target_Threejs/06_audio.html</div>
-    </a>
-    <a class="card orange" href="image_target_Threejs/07_p5js.html">
-      <span class="card-number badge-orange">07</span>
-      <div class="card-title">p5.js</div>
-      <div class="card-path">image_target_Threejs/07_p5js.html</div>
-    </a>
-    <a class="card orange" href="image_target_Threejs/08_gaussian_splat.html">
-      <span class="card-number badge-orange">08</span>
-      <div class="card-title">Gaussian Splat (Spark.js)</div>
-      <div class="card-path">image_target_Threejs/08_gaussian_splat.html</div>
-    </a>
-    <a class="card orange" href="image_target_Threejs/09_multi_targets.html">
-      <span class="card-number badge-orange">09</span>
-      <div class="card-title">Multi Targets</div>
-      <div class="card-path">image_target_Threejs/09_multi_targets.html</div>
-    </a>
+    <div id="temp-scale"></div>
+
+    <div id="status-bar">
+      <span class="rec"></span>
+      Thermal Imaging — FLIR&nbsp;&nbsp;|&nbsp;&nbsp;Mode: Cold Zone Detection
+    </div>
+
+    <div id="scan-prompt">
+      <div class="scan-ring"></div>
+      <p>Pointez vers l'impression Ophelia</p>
+    </div>
+
+    <div id="clinical-note">
+      <div id="clinical-note-inner" class="hidden">
+        <h3>— Thermal Imaging Active —</h3>
+        <p>Scanning body heat dissipation…<br>Water temperature: <em>critical</em>.</p>
+      </div>
+    </div>
   </div>
 
-  <!-- ================================================================
-       WORLD EFFECT — A-Frame (8frame)
-       ================================================================ -->
-  <h2 class="section-title">World Effect — A-Frame (8frame)</h2>
-  <p class="section-desc">Tap-to-place on detected surfaces — world tracking enabled, no image targets</p>
+  <!-- ══════════════════════════════════════
+       A-FRAME SCENE
+       ══════════════════════════════════════ -->
+  <a-scene
+    ophelia-ar
+    xrextras-gesture-detector
+    xrextras-almost-there
+    xrextras-loading
+    xrextras-runtime-error
+    xrweb="disableWorldTracking: true">
 
-  <div class="grid">
-    <a class="card green" href="world_8thFrame/01_primitives.html">
-      <span class="card-number badge-green">01</span>
-      <div class="card-title">Primitives</div>
-      <div class="card-path">world_8thFrame/01_primitives.html</div>
-    </a>
-    <a class="card green" href="world_8thFrame/02_text_msdf.html">
-      <span class="card-number badge-green">02</span>
-      <div class="card-title">Text MSDF</div>
-      <div class="card-path">world_8thFrame/02_text_msdf.html</div>
-    </a>
-    <a class="card green" href="world_8thFrame/03_images.html">
-      <span class="card-number badge-green">03</span>
-      <div class="card-title">Images</div>
-      <div class="card-path">world_8thFrame/03_images.html</div>
-    </a>
-    <a class="card green" href="world_8thFrame/04_3d_models.html">
-      <span class="card-number badge-green">04</span>
-      <div class="card-title">3D Models</div>
-      <div class="card-path">world_8thFrame/04_3d_models.html</div>
-    </a>
-    <a class="card green" href="world_8thFrame/05_video_chroma.html">
-      <span class="card-number badge-green">05</span>
-      <div class="card-title">Video Chroma</div>
-      <div class="card-path">world_8thFrame/05_video_chroma.html</div>
-    </a>
-    <a class="card green" href="world_8thFrame/06_audio.html">
-      <span class="card-number badge-green">06</span>
-      <div class="card-title">Audio</div>
-      <div class="card-path">world_8thFrame/06_audio.html</div>
-    </a>
-    <a class="card green" href="world_8thFrame/07_p5js.html">
-      <span class="card-number badge-green">07</span>
-      <div class="card-title">p5.js</div>
-      <div class="card-path">world_8thFrame/07_p5js.html</div>
-    </a>
-    <a class="card green" href="world_8thFrame/08_gaussian_splat.html">
-      <span class="card-number badge-green">08</span>
-      <div class="card-title">Gaussian Splat</div>
-      <div class="card-path">world_8thFrame/08_gaussian_splat.html</div>
-    </a>
-    <a class="card green" href="world_8thFrame/09_multi_targets.html">
-      <span class="card-number badge-green">09</span>
-      <div class="card-title">Multi Placement</div>
-      <div class="card-path">world_8thFrame/09_multi_targets.html</div>
-    </a>
-  </div>
+    <!-- Assets preload -->
+    <a-assets>
+      <!--
+        ╔══════════════════════════════════════════════════════╗
+        ║  REPLACE: place your Ophelia image file in assets/  ║
+        ║  and update src below + TARGET_IMAGE in <script>    ║
+        ╚══════════════════════════════════════════════════════╝
+      -->
+      <img id="ophelia-img" src="assets/Ophelia_target.jpg" crossorigin="anonymous" />
+    </a-assets>
 
-  <!-- ================================================================
-       WORLD EFFECT — Raw Three.js r178
-       ================================================================ -->
-  <h2 class="section-title">World Effect — Raw Three.js r178</h2>
-  <p class="section-desc">Tap-to-place with raw Three.js + XR8 world tracking pipeline</p>
+    <!-- Camera -->
+    <a-camera position="0 4 10"></a-camera>
 
-  <div class="grid">
-    <a class="card purple" href="world_Threejs/01_primitives.html">
-      <span class="card-number badge-purple">01</span>
-      <div class="card-title">Primitives</div>
-      <div class="card-path">world_Threejs/01_primitives.html</div>
-    </a>
-    <a class="card purple" href="world_Threejs/02_text_msdf.html">
-      <span class="card-number badge-purple">02</span>
-      <div class="card-title">Text &amp; Fonts</div>
-      <div class="card-path">world_Threejs/02_text_msdf.html</div>
-    </a>
-    <a class="card purple" href="world_Threejs/03_images.html">
-      <span class="card-number badge-purple">03</span>
-      <div class="card-title">Images</div>
-      <div class="card-path">world_Threejs/03_images.html</div>
-    </a>
-    <a class="card purple" href="world_Threejs/04_3d_models.html">
-      <span class="card-number badge-purple">04</span>
-      <div class="card-title">3D Models</div>
-      <div class="card-path">world_Threejs/04_3d_models.html</div>
-    </a>
-    <a class="card purple" href="world_Threejs/05_video_chroma.html">
-      <span class="card-number badge-purple">05</span>
-      <div class="card-title">Video Chroma</div>
-      <div class="card-path">world_Threejs/05_video_chroma.html</div>
-    </a>
-    <a class="card purple" href="world_Threejs/06_audio.html">
-      <span class="card-number badge-purple">06</span>
-      <div class="card-title">Audio</div>
-      <div class="card-path">world_Threejs/06_audio.html</div>
-    </a>
-    <a class="card purple" href="world_Threejs/07_p5js.html">
-      <span class="card-number badge-purple">07</span>
-      <div class="card-title">p5.js</div>
-      <div class="card-path">world_Threejs/07_p5js.html</div>
-    </a>
-    <a class="card purple" href="world_Threejs/08_gaussian_splat.html">
-      <span class="card-number badge-purple">08</span>
-      <div class="card-title">Gaussian Splat (Spark.js)</div>
-      <div class="card-path">world_Threejs/08_gaussian_splat.html</div>
-    </a>
-    <a class="card purple" href="world_Threejs/09_multi_targets.html">
-      <span class="card-number badge-purple">09</span>
-      <div class="card-title">Multi Placement</div>
-      <div class="card-path">world_Threejs/09_multi_targets.html</div>
-    </a>
-  </div>
+    <!-- Image target: everything inside appears over the Ophelia print -->
+    <xrextras-named-image-target name="ophelia-print">
+
+      <!-- ── Thermal overlay plane (covers the print) ──
+           Positioned flat at y=0.01 to hover just above the paper.
+           Scale matches the print's aspect ratio.
+           The thermal-lut shader transforms the image colours.
+      -->
+      <a-entity
+        id="thermal-plane"
+        geometry="primitive: plane; width: 1.33; height: 1.0"
+        position="0 0.01 0"
+        rotation="-90 0 0"
+        material="shader: thermal-lut; src: #ophelia-img; opacity: 0.88"
+        animation="property: material.opacity; from: 0; to: 0.88; dur: 1800; easing: easeInQuad">
+      </a-entity>
+
+      <!-- ── Temperature readout text (floats above) ── -->
+      <a-entity
+        geometry="primitive: plane; width: 0.55; height: 0.12"
+        material="color: #05101f; opacity: 0.75; transparent: true"
+        position="0.5 0.08 -0.35"
+        rotation="-90 0 0">
+      </a-entity>
+
+      <a-text
+        value="CORE TEMP: 35.1°C ↓"
+        color="#5ab4d6"
+        font="https://cdn.aframe.io/fonts/Exo2Bold.fnt"
+        width="0.8"
+        position="0.5 0.1 -0.35"
+        rotation="-90 0 0"
+        align="center"
+        animation="property: color; from: #5ab4d6; to: #1a3a6e; dir: alternate; loop: true; dur: 1200">
+      </a-text>
+
+      <!-- ── Water cold zone indicator (bottom of image) ── -->
+      <a-entity
+        geometry="primitive: plane; width: 1.33; height: 0.25"
+        material="color: #05101f; opacity: 0.55; transparent: true"
+        position="0 0.12 0.37"
+        rotation="-90 0 0">
+      </a-entity>
+
+      <a-text
+        value="ZONE EAU — -2°C / HYPOTHERMIE CRITIQUE"
+        color="#0a4a8e"
+        font="https://cdn.aframe.io/fonts/Exo2Bold.fnt"
+        width="1.1"
+        position="0 0.13 0.37"
+        rotation="-90 0 0"
+        align="center">
+      </a-text>
+
+      <!-- ── Body heat dissipation particle-like glow ──
+           Simple pulsing sphere to suggest body losing warmth
+      -->
+      <a-sphere
+        radius="0.07"
+        material="color: #e0eeff; opacity: 0.25; transparent: true"
+        position="0 0.12 0"
+        animation__scale="property: scale; from: 1 1 1; to: 1.6 1.6 1.6; dir: alternate; loop: true; dur: 2000; easing: easeInOutSine"
+        animation__op="property: material.opacity; from: 0.05; to: 0.3; dir: alternate; loop: true; dur: 2000">
+      </a-sphere>
+
+      <!-- ── FLIR scan-line effect (horizontal strip moving down) ── -->
+      <a-entity
+        id="scanline"
+        geometry="primitive: plane; width: 1.33; height: 0.008"
+        material="color: #5ab4d6; opacity: 0.35; transparent: true"
+        position="0 0.15 -0.5"
+        rotation="-90 0 0"
+        animation="property: position; from: 0 0.15 -0.5; to: 0 0.15 0.5; loop: true; dur: 3500; easing: linear">
+      </a-entity>
+
+    </xrextras-named-image-target>
+
+  </a-scene>
+
+  <!-- ══════════════════════════════════════
+       LAUNCH BUTTON LOGIC
+       ══════════════════════════════════════ -->
+  <script>
+    document.getElementById("btn-launch").addEventListener("click", () => {
+      const landing = document.getElementById("landing");
+      landing.classList.add("hidden");
+      // A-Frame / 8th Wall will handle camera permission
+      setTimeout(() => landing.style.display = "none", 900);
+    });
+  </script>
 
 </body>
 </html>
