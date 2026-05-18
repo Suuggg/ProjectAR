@@ -1,322 +1,83 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ELIZABETH SIDDALL — COLD EVIDENCE</title>
 
-  <!-- ─── 8th Wall / A-Frame stack ─── -->
   <script src="https://cdn.8thwall.com/web/aframe/8frame-1.3.0.min.js"></script>
   <script src="https://cdn.8thwall.com/web/xrextras/xrextras.js"></script>
   <script async src="engine/xr.js" data-preload-chunks="slam"></script>
 
-  <!-- ─── Google Fonts ─── -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital@0;1&display=swap" rel="stylesheet">
 
   <style>
-    /* ── CSS Variables ── */
-    :root {
-      --cold-blue: #0a1628;
-      --ice: #5ab4d6;
-      --thermal-hot: #ff4500;
-      --thermal-warm: #ffa500;
-      --thermal-cold: #1a3a6e;
-      --white: #f0ede8;
-      --red-alert: #c0392b;
-      --font-mono: 'Courier Prime', monospace;
-      --font-serif: 'Playfair Display', serif;
-    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#060e1a; color:#f0ede8; font-family:'Courier Prime',monospace; min-height:100vh; }
 
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      background: var(--cold-blue);
-      color: var(--white);
-      font-family: var(--font-mono);
-      min-height: 100vh;
-      overflow-x: hidden;
-    }
-
-    /* ══════════════════════════════════════
-       LANDING PAGE — shown before AR starts
-       ══════════════════════════════════════ */
     #landing {
-      position: fixed;
-      inset: 0;
-      z-index: 100;
-      background: var(--cold-blue);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem;
-      text-align: center;
-      transition: opacity 0.8s ease;
+      position:fixed; inset:0; z-index:200;
+      background:#060e1a;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      padding:2rem; text-align:center;
+      transition:opacity 0.8s ease;
     }
-    #landing.hidden {
-      opacity: 0;
-      pointer-events: none;
-    }
+    #landing.hidden { opacity:0; pointer-events:none; }
 
     .stamp {
-      font-family: var(--font-mono);
-      font-size: 0.65rem;
-      letter-spacing: 0.25em;
-      color: var(--red-alert);
-      border: 2px solid var(--red-alert);
-      padding: 0.3rem 0.8rem;
-      text-transform: uppercase;
-      margin-bottom: 2rem;
-      transform: rotate(-2deg);
-      display: inline-block;
+      font-size:0.6rem; letter-spacing:0.3em; color:#c0392b;
+      border:2px solid #c0392b; padding:0.3rem 1rem;
+      text-transform:uppercase; margin-bottom:2rem;
+      transform:rotate(-2deg); display:inline-block;
     }
+    h1 { font-family:'Playfair Display',serif; font-style:italic; font-size:clamp(2.2rem,8vw,3.8rem); line-height:1.05; margin-bottom:0.4rem; }
+    .subtitle { font-size:0.65rem; letter-spacing:0.35em; color:#5ab4d6; text-transform:uppercase; margin-bottom:2rem; }
+    .divider { width:50px; height:1px; background:#5ab4d6; margin:0 auto 2rem; opacity:0.4; }
+    .case-info { font-size:0.68rem; letter-spacing:0.12em; color:rgba(240,237,232,0.45); text-transform:uppercase; line-height:2.2; margin-bottom:2rem; }
+    .case-info span { color:#5ab4d6; }
+    .instruction-box { background:rgba(90,180,214,0.05); border:1px solid rgba(90,180,214,0.2); border-radius:2px; padding:1.4rem 1.6rem; max-width:320px; margin-bottom:2rem; }
+    .instruction-box p { font-size:0.78rem; line-height:1.8; color:rgba(240,237,232,0.7); }
+    .instruction-box strong { color:#5ab4d6; }
+    .btn-launch { background:none; border:1px solid #5ab4d6; color:#5ab4d6; font-family:'Courier Prime',monospace; font-size:0.68rem; letter-spacing:0.3em; text-transform:uppercase; padding:0.9rem 2.4rem; cursor:pointer; transition:all 0.3s; }
+    .btn-launch:hover { background:#5ab4d6; color:#060e1a; }
+    .temp-blink { position:absolute; bottom:1.5rem; right:1.5rem; font-size:0.55rem; color:#1a3a6e; letter-spacing:0.1em; animation:pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:1} }
 
-    .title-block { margin-bottom: 2.5rem; }
-    .title-block h1 {
-      font-family: var(--font-serif);
-      font-style: italic;
-      font-size: clamp(2rem, 8vw, 3.5rem);
-      line-height: 1.05;
-      color: var(--white);
-      margin-bottom: 0.4rem;
-    }
-    .title-block h2 {
-      font-family: var(--font-mono);
-      font-size: clamp(0.6rem, 2vw, 0.75rem);
-      letter-spacing: 0.3em;
-      color: var(--ice);
-      text-transform: uppercase;
-    }
+    #hud { position:fixed; inset:0; z-index:50; pointer-events:none; display:none; }
+    #hud.active { display:block; }
 
-    .divider {
-      width: 60px;
-      height: 1px;
-      background: var(--ice);
-      margin: 1.5rem auto;
-      opacity: 0.5;
-    }
+    .corner { position:absolute; width:22px; height:22px; border-color:rgba(90,180,214,0.7); border-style:solid; }
+    .c-tl { top:16px; left:16px; border-width:2px 0 0 2px; }
+    .c-tr { top:16px; right:16px; border-width:2px 2px 0 0; }
+    .c-bl { bottom:16px; left:16px; border-width:0 0 2px 2px; }
+    .c-br { bottom:16px; right:16px; border-width:0 2px 2px 0; }
 
-    .case-info {
-      font-size: 0.7rem;
-      letter-spacing: 0.12em;
-      color: rgba(240,237,232,0.5);
-      text-transform: uppercase;
-      line-height: 2;
-      margin-bottom: 2.5rem;
-    }
-    .case-info span { color: var(--ice); }
-
-    .instruction-box {
-      background: rgba(90, 180, 214, 0.06);
-      border: 1px solid rgba(90, 180, 214, 0.25);
-      border-radius: 2px;
-      padding: 1.5rem;
-      max-width: 340px;
-      margin-bottom: 2rem;
-    }
-    .instruction-box p {
-      font-size: 0.75rem;
-      line-height: 1.7;
-      color: rgba(240,237,232,0.75);
-    }
-    .instruction-box strong { color: var(--ice); }
-
-    .btn-launch {
-      background: none;
-      border: 1px solid var(--ice);
-      color: var(--ice);
-      font-family: var(--font-mono);
-      font-size: 0.7rem;
-      letter-spacing: 0.3em;
-      text-transform: uppercase;
-      padding: 0.9rem 2.2rem;
-      cursor: pointer;
-      transition: all 0.3s ease;
-    }
-    .btn-launch:hover {
-      background: var(--ice);
-      color: var(--cold-blue);
-    }
-
-    .temp-indicator {
-      position: absolute;
-      bottom: 2rem;
-      right: 2rem;
-      font-size: 0.6rem;
-      color: var(--thermal-cold);
-      letter-spacing: 0.1em;
-      animation: pulse 2s infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 0.4; }
-      50% { opacity: 1; }
-    }
-
-    /* ══════════════════════════════════════
-       OVERLAY HUD — shown during AR
-       ══════════════════════════════════════ */
-    #hud {
-      position: fixed;
-      inset: 0;
-      z-index: 50;
-      pointer-events: none;
-      display: none;
-    }
-    #hud.visible { display: block; }
-
-    /* Thermal frame corners */
-    .corner {
-      position: absolute;
-      width: 24px;
-      height: 24px;
-      border-color: var(--ice);
-      border-style: solid;
-      opacity: 0.7;
-    }
-    .corner-tl { top: 20px; left: 20px; border-width: 2px 0 0 2px; }
-    .corner-tr { top: 20px; right: 20px; border-width: 2px 2px 0 0; }
-    .corner-bl { bottom: 20px; left: 20px; border-width: 0 0 2px 2px; }
-    .corner-br { bottom: 20px; right: 20px; border-width: 0 2px 2px 0; }
-
-    /* Thermal temperature scale */
-    #temp-scale {
-      position: absolute;
-      right: 16px;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 18px;
-      height: 180px;
-      background: linear-gradient(to bottom,
-        #ff0000, #ff4500, #ff8c00, #ffd700,
-        #7fff00, #00bfff, #1a3a6e, #05101f
-      );
-      border: 1px solid rgba(255,255,255,0.2);
-    }
-    #temp-scale::before {
-      content: '°C';
-      position: absolute;
-      top: -20px;
-      left: -4px;
-      font-size: 0.55rem;
-      color: var(--white);
-      font-family: var(--font-mono);
-    }
-    #temp-scale::after {
-      content: '37\a0\a0\a0\a0\a0\a0\a0\a0\a00';
-      position: absolute;
-      top: 0;
-      right: 22px;
-      font-size: 0.5rem;
-      color: var(--white);
-      font-family: var(--font-mono);
-      white-space: pre;
-      line-height: 1.8;
-    }
-
-    /* Status bar top */
-    #status-bar {
-      position: absolute;
-      top: 16px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-family: var(--font-mono);
-      font-size: 0.55rem;
-      letter-spacing: 0.2em;
-      color: var(--ice);
-      text-transform: uppercase;
-      text-align: center;
-      pointer-events: none;
-    }
-    #status-bar .rec {
-      display: inline-block;
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--red-alert);
-      margin-right: 6px;
-      animation: blink 1s infinite;
-      vertical-align: middle;
-    }
+    #status { position:absolute; top:14px; left:50%; transform:translateX(-50%); font-size:0.52rem; letter-spacing:0.2em; color:#5ab4d6; text-transform:uppercase; white-space:nowrap; }
+    .rec { display:inline-block; width:6px; height:6px; border-radius:50%; background:#c0392b; margin-right:5px; vertical-align:middle; animation:blink 1s infinite; }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
 
-    /* Clinical note bottom */
-    #clinical-note {
-      position: absolute;
-      bottom: 40px;
-      left: 0;
-      right: 0;
-      display: flex;
-      justify-content: center;
-      pointer-events: none;
-    }
-    #clinical-note-inner {
-      background: rgba(10, 22, 40, 0.82);
-      border: 1px solid rgba(90, 180, 214, 0.3);
-      padding: 0.8rem 1.2rem;
-      max-width: 320px;
-      text-align: center;
-      transition: opacity 1s ease;
-    }
-    #clinical-note-inner.hidden { opacity: 0; }
-    #clinical-note h3 {
-      font-family: var(--font-mono);
-      font-size: 0.55rem;
-      letter-spacing: 0.3em;
-      color: var(--red-alert);
-      text-transform: uppercase;
-      margin-bottom: 0.5rem;
-    }
-    #clinical-note p {
-      font-family: var(--font-serif);
-      font-style: italic;
-      font-size: 0.8rem;
-      line-height: 1.5;
-      color: rgba(240,237,232,0.85);
-    }
+    #scale { position:absolute; right:14px; top:50%; transform:translateY(-50%); width:16px; height:160px; background:linear-gradient(to bottom,#ff0000,#ff4500,#ff8c00,#ffd700,#7fff00,#00bfff,#1e40af,#060e1a); border:1px solid rgba(255,255,255,0.15); }
+    #scale-labels { position:absolute; right:34px; top:50%; transform:translateY(-50%); height:160px; display:flex; flex-direction:column; justify-content:space-between; font-size:0.48rem; color:rgba(240,237,232,0.6); text-align:right; }
 
-    /* Lost-target overlay */
-    #scan-prompt {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 1rem;
-      background: rgba(10, 22, 40, 0.7);
-      transition: opacity 0.5s;
-    }
-    #scan-prompt.hidden { opacity: 0; pointer-events: none; }
-    #scan-prompt p {
-      font-family: var(--font-mono);
-      font-size: 0.7rem;
-      letter-spacing: 0.2em;
-      color: var(--ice);
-      text-transform: uppercase;
-    }
-    .scan-ring {
-      width: 80px;
-      height: 80px;
-      border: 2px solid var(--ice);
-      border-radius: 50%;
-      border-top-color: transparent;
-      animation: spin 1.5s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    #note { position:absolute; bottom:32px; left:50%; transform:translateX(-50%); width:90%; max-width:360px; text-align:center; transition:opacity 0.8s; }
+    #note.hidden { opacity:0; }
+    #note-inner { background:rgba(6,14,26,0.85); border:1px solid rgba(90,180,214,0.25); padding:0.8rem 1.2rem; }
+    #note h3 { font-size:0.52rem; letter-spacing:0.28em; color:#c0392b; text-transform:uppercase; margin-bottom:0.45rem; }
+    #note p { font-family:'Playfair Display',serif; font-style:italic; font-size:0.82rem; line-height:1.6; color:rgba(240,237,232,0.85); }
+
+    #scan-prompt { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1rem; background:rgba(6,14,26,0.65); transition:opacity 0.5s; }
+    #scan-prompt.hidden { opacity:0; pointer-events:none; }
+    #scan-prompt p { font-size:0.68rem; letter-spacing:0.2em; color:#5ab4d6; text-transform:uppercase; }
+    .ring { width:72px; height:72px; border:2px solid #5ab4d6; border-radius:50%; border-top-color:transparent; animation:spin 1.5s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
   </style>
 
-  <!-- ─── Configure image target ─── -->
   <script>
-    // ════════════════════════════════════════════════════════════
-    // CONFIGURATION — replace "Ophelia_target.jpg" with your
-    // actual Ophelia print image file placed in assets/
-    // Update width/height to match your image pixel dimensions.
-    // ════════════════════════════════════════════════════════════
-    const TARGET_IMAGE  = "assets/Ophelia_target.jpg";
-    const TARGET_W      = 640;   // pixels
-    const TARGET_H      = 480;   // pixels
-    const TARGET_NAME   = "ophelia-print";
+    const TARGET_NAME  = "ophelia-print";
+    const TARGET_IMAGE = "assets/Ophelia_target.jpg";
+    const TARGET_W     = 878;
+    const TARGET_H     = 583;
 
     const onxrloaded = () => {
       XR8.XrController.configure({
@@ -325,11 +86,9 @@
           type: "PLANAR",
           imagePath: TARGET_IMAGE,
           properties: {
-            left: 0, top: 0,
-            width: TARGET_W,
-            height: TARGET_H,
-            originalWidth: TARGET_W,
-            originalHeight: TARGET_H,
+            left:0, top:0,
+            width: TARGET_W, height: TARGET_H,
+            originalWidth: TARGET_W, originalHeight: TARGET_H,
             isRotated: false
           }
         }]
@@ -338,22 +97,16 @@
     window.XR8 ? onxrloaded() : window.addEventListener("xrloaded", onxrloaded);
   </script>
 
-  <!-- ─── Chromakey / thermal GLSL shader (reused from example 05) ─── -->
   <script>
-    // Custom A-Frame component: thermal-plane
-    // Renders the Ophelia image with a simulated thermal colour LUT.
-    AFRAME.registerShader("thermal-lut", {
+    AFRAME.registerShader("thermal", {
       schema: {
-        src:     { type: "map" },
-        time:    { type: "time", is: "uniform" },
-        opacity: { type: "number", default: 1, is: "uniform" }
+        src:     { type:"map" },
+        time:    { type:"time", is:"uniform" },
+        opacity: { type:"number", default:0, is:"uniform" }
       },
       vertexShader: `
         varying vec2 vUv;
-        void main() {
-          vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
+        void main() { vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }
       `,
       fragmentShader: `
         uniform sampler2D src;
@@ -361,235 +114,169 @@
         uniform float opacity;
         varying vec2 vUv;
 
-        // Simple luminance-to-thermal palette
-        vec3 thermalColor(float lum, vec2 uv) {
-          // Lower half = water zone → intensely cold (blue)
-          float waterMask = smoothstep(0.3, 0.7, uv.y);
-
-          // Simulate body losing heat: body appears cool-white, water deep blue
-          vec3 hot  = vec3(1.0, 0.27, 0.0);    // orange-red  (plants, warm)
-          vec3 warm = vec3(1.0, 0.65, 0.0);    // amber
-          vec3 cool = vec3(0.0, 0.75, 1.0);    // cyan-blue   (transition)
-          vec3 cold = vec3(0.0, 0.15, 0.55);   // deep blue   (water)
-          vec3 body = vec3(0.85, 0.9, 1.0);    // white-blue  (body losing heat)
-
-          // Blend based on luminance
-          vec3 colour;
-          if (lum > 0.72) {
-            colour = mix(warm, hot, (lum - 0.72) / 0.28);
-          } else if (lum > 0.5) {
-            colour = mix(cool, warm, (lum - 0.5) / 0.22);
-          } else if (lum > 0.35) {
-            // Body zone approximation: centre of image vertically
-            float bodyZone = smoothstep(0.35, 0.65, uv.y) * (1.0 - smoothstep(0.1, 0.45, abs(uv.x - 0.5)));
-            colour = mix(cold, body, bodyZone * (1.0 - (lum - 0.35) / 0.15));
-          } else {
-            colour = cold;
-          }
-
-          // Water: override lower region to very cold blue
-          colour = mix(colour, cold * 0.5, waterMask * (1.0 - lum));
-
-          // Gentle pulse on the body (heat dissipation)
-          float dissipate = 0.05 * sin(time * 0.001 + uv.y * 8.0);
-          colour = clamp(colour + dissipate, 0.0, 1.0);
-
-          return colour;
+        vec3 pal(float t) {
+          vec3 c0=vec3(0.02,0.05,0.20);
+          vec3 c1=vec3(0.00,0.20,0.70);
+          vec3 c2=vec3(0.00,0.75,0.90);
+          vec3 c3=vec3(0.10,0.90,0.10);
+          vec3 c4=vec3(1.00,0.80,0.00);
+          vec3 c5=vec3(1.00,0.30,0.00);
+          vec3 c6=vec3(1.00,0.00,0.00);
+          if(t<0.166) return mix(c0,c1,t/0.166);
+          if(t<0.333) return mix(c1,c2,(t-0.166)/0.166);
+          if(t<0.500) return mix(c2,c3,(t-0.333)/0.166);
+          if(t<0.666) return mix(c3,c4,(t-0.500)/0.166);
+          if(t<0.833) return mix(c4,c5,(t-0.666)/0.166);
+          return mix(c5,c6,(t-0.833)/0.166);
         }
 
         void main() {
-          vec4 px  = texture2D(src, vUv);
-          float lum = dot(px.rgb, vec3(0.299, 0.587, 0.114));
-          vec3  tc  = thermalColor(lum, vUv);
-          gl_FragColor = vec4(tc, opacity);
+          vec4 px = texture2D(src, vUv);
+          float lum = dot(px.rgb, vec3(0.299,0.587,0.114));
+          float water = smoothstep(0.45,0.75, vUv.y);
+          float plant = clamp((1.0-smoothstep(0.0,0.45,vUv.y)) + smoothstep(0.0,0.2,1.0-abs(vUv.x-0.5)*2.0), 0.0,1.0);
+          float cx=abs(vUv.x-0.5); float cy=abs(vUv.y-0.55);
+          float body=smoothstep(0.25,0.0,sqrt(cx*cx+cy*cy*1.8));
+          float th=lum;
+          th=mix(th, th*0.2,  water*0.9);
+          th=mix(th, 0.6+lum*0.4, plant*0.5);
+          float dis=0.3+0.08*sin(time*0.0008+vUv.y*6.0);
+          th=mix(th, dis, body*0.7);
+          th=clamp(th,0.0,1.0);
+          vec3 col=pal(th);
+          float pulse=0.04*sin(time*0.001+vUv.x*4.0);
+          col=clamp(col+vec3(pulse*body),0.0,1.0);
+          gl_FragColor=vec4(col,opacity);
         }
       `
     });
 
-    // A-Frame component to handle image-found / lost events and audio
-    AFRAME.registerComponent("ophelia-ar", {
+    AFRAME.registerComponent("ophelia-controller", {
       init() {
-        this.found   = false;
-        this.audioStream  = null;  // ambient outdoor stream
-        this.audioDrip    = null;  // indoor bathtub drip
-        this.clinicalNote = document.getElementById("clinical-note-inner");
-        this.scanPrompt   = document.getElementById("scan-prompt");
-        this.hud          = document.getElementById("hud");
-
-        this._onFound = this._onFound.bind(this);
-        this._onLost  = this._onLost.bind(this);
-        this.el.sceneEl.addEventListener("xrimagefound", this._onFound);
-        this.el.sceneEl.addEventListener("xrimagelost",  this._onLost);
-
-        // Build procedural audio via Web Audio API
-        this._buildAudio();
+        this._phase="idle";
+        this._ctx=null; this._streamSrc=null;
+        this._dripTimer=null; this._twistTimer=null;
+        this._onFound=this._onFound.bind(this);
+        this._onLost =this._onLost.bind(this);
+        this.el.sceneEl.addEventListener("xrimagefound",   this._onFound);
+        this.el.sceneEl.addEventListener("xrimageupdated", this._onFound);
+        this.el.sceneEl.addEventListener("xrimagelost",    this._onLost);
+        this._initAudio();
       },
 
-      _buildAudio() {
+      _initAudio() {
         try {
-          const ctx = new (window.AudioContext || window.webkitAudioContext)();
-          this._ctx = ctx;
-
-          // ── OUTDOOR STREAM (brown noise + reverb) ──
-          const streamBuffer = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate);
-          const data = streamBuffer.getChannelData(0);
-          let b0=0, b1=0, b2=0, b3=0, b4=0, b5=0, b6=0;
-          for (let i = 0; i < data.length; i++) {
-            const w = Math.random() * 2 - 1;
-            b0 = 0.99886*b0 + w*0.0555179; b1 = 0.99332*b1 + w*0.0750759;
-            b2 = 0.96900*b2 + w*0.1538520; b3 = 0.86650*b3 + w*0.3104856;
-            b4 = 0.55000*b4 + w*0.5329522; b5 = -0.7616*b5 - w*0.0168980;
-            data[i] = (b0+b1+b2+b3+b4+b5+b6+w*0.5362) * 0.11;
-            b6 = w * 0.115926;
+          const ctx=new (window.AudioContext||window.webkitAudioContext)();
+          this._ctx=ctx;
+          const len=ctx.sampleRate*5;
+          const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+          const d=buf.getChannelData(0);
+          let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+          for(let i=0;i<len;i++){
+            const w=Math.random()*2-1;
+            b0=0.99886*b0+w*0.0555179; b1=0.99332*b1+w*0.0750759;
+            b2=0.96900*b2+w*0.1538520; b3=0.86650*b3+w*0.3104856;
+            b4=0.55000*b4+w*0.5329522; b5=-0.7616*b5-w*0.0168980;
+            d[i]=(b0+b1+b2+b3+b4+b5+b6+w*0.5362)*0.12; b6=w*0.115926;
           }
-          this._streamBuf = streamBuffer;
-
-          // Convolution reverb for outdoor feel
-          const convLen = ctx.sampleRate * 1.5;
-          const convBuf = ctx.createBuffer(2, convLen, ctx.sampleRate);
-          for (let ch = 0; ch < 2; ch++) {
-            const d = convBuf.getChannelData(ch);
-            for (let i = 0; i < convLen; i++) {
-              d[i] = (Math.random()*2-1) * Math.pow(1 - i/convLen, 2);
-            }
-          }
-          this._convBuf = convBuf;
-
-          // Low-pass filter (stream is mellow)
-          this._lpf = ctx.createBiquadFilter();
-          this._lpf.type = "lowpass";
-          this._lpf.frequency.value = 800;
-
-          this._streamGain = ctx.createGain();
-          this._streamGain.gain.value = 0;
-
-          const conv = ctx.createConvolver();
-          conv.buffer = convBuf;
-          this._lpf.connect(conv);
-          conv.connect(this._streamGain);
-          this._streamGain.connect(ctx.destination);
-
-          this._drips = [];
-          this._dripGain = ctx.createGain();
-          this._dripGain.gain.value = 0;
+          this._streamBuf=buf;
+          this._streamGain=ctx.createGain(); this._streamGain.gain.value=0;
+          this._dripGain  =ctx.createGain(); this._dripGain.gain.value=0;
+          const lpf=ctx.createBiquadFilter(); lpf.type="lowpass"; lpf.frequency.value=700;
+          const cLen=ctx.sampleRate*2;
+          const cBuf=ctx.createBuffer(2,cLen,ctx.sampleRate);
+          for(let ch=0;ch<2;ch++){const cd=cBuf.getChannelData(ch);for(let i=0;i<cLen;i++)cd[i]=(Math.random()*2-1)*Math.pow(1-i/cLen,1.8);}
+          const conv=ctx.createConvolver(); conv.buffer=cBuf;
+          lpf.connect(conv); conv.connect(this._streamGain); this._streamGain.connect(ctx.destination);
           this._dripGain.connect(ctx.destination);
-
-        } catch(e) {
-          console.warn("Audio context error", e);
-        }
+          this._lpf=lpf;
+        } catch(e){console.warn("Audio init",e);}
       },
 
       _startStream() {
-        if (!this._ctx) return;
-        if (this._ctx.state === "suspended") this._ctx.resume();
-
-        // Loop outdoor stream
-        if (this._streamSrc) { this._streamSrc.stop(); }
-        this._streamSrc = this._ctx.createBufferSource();
-        this._streamSrc.buffer = this._streamBuf;
-        this._streamSrc.loop = true;
+        if(!this._ctx) return;
+        if(this._ctx.state==="suspended") this._ctx.resume();
+        if(this._streamSrc){try{this._streamSrc.stop();}catch(e){}}
+        this._streamSrc=this._ctx.createBufferSource();
+        this._streamSrc.buffer=this._streamBuf;
+        this._streamSrc.loop=true;
         this._streamSrc.connect(this._lpf);
         this._streamSrc.start();
-
-        // Fade in stream
         this._streamGain.gain.cancelScheduledValues(this._ctx.currentTime);
-        this._streamGain.gain.linearRampToValueAtTime(0.45, this._ctx.currentTime + 1.5);
-
-        // After 5s → TWIST: fade stream out, start drip
-        this._twistTimeout = setTimeout(() => this._startTwist(), 5000);
+        this._streamGain.gain.linearRampToValueAtTime(0.5, this._ctx.currentTime+2);
+        this._phase="stream";
+        this._twistTimer=setTimeout(()=>this._startTwist(), 6000);
       },
 
       _startTwist() {
-        if (!this._ctx) return;
-        const now = this._ctx.currentTime;
-
-        // Fade out outdoor stream
-        this._streamGain.gain.linearRampToValueAtTime(0, now + 2);
-        this._dripGain.gain.linearRampToValueAtTime(0.7, now + 2);
-
-        // Update clinical note
-        this.clinicalNote.innerHTML = `
+        if(!this._ctx) return;
+        const now=this._ctx.currentTime;
+        this._phase="drip";
+        this._streamGain.gain.linearRampToValueAtTime(0, now+2.5);
+        this._dripGain.gain.linearRampToValueAtTime(0.8, now+2.5);
+        const ni=document.getElementById("note-inner");
+        if(ni) ni.innerHTML=`
           <h3>— Elizabeth Siddall — 1851 —</h3>
-          <p>Oil lamps extinguished.<br>Core temperature: <em>declining</em>.<br>Exposure duration: unknown.</p>
+          <p>Oil lamps extinguished.<br>
+          Core temperature: <em>declining</em>.<br>
+          Exposure duration: unknown.</p>
         `;
-
-        // Start rhythmic drip (metallic, echoing)
-        this._scheduleDrips();
+        this._drip();
+        this._dripTimer=setInterval(()=>this._drip(), 1350);
       },
 
-      _scheduleDrips() {
-        if (!this._ctx) return;
-        const interval = 1400; // ms between drips — slow, monotonous
-        this._dripInterval = setInterval(() => {
-          this._playDrip();
-        }, interval);
-        this._playDrip(); // immediate first drip
+      _drip() {
+        if(!this._ctx) return;
+        const now=this._ctx.currentTime;
+        const osc=this._ctx.createOscillator();
+        const env=this._ctx.createGain();
+        const del=this._ctx.createDelay();
+        const fb =this._ctx.createGain();
+        osc.type="sine"; osc.frequency.value=860+Math.random()*140;
+        env.gain.setValueAtTime(0,now);
+        env.gain.linearRampToValueAtTime(0.35,now+0.008);
+        env.gain.exponentialRampToValueAtTime(0.001,now+0.9);
+        del.delayTime.value=0.22; fb.gain.value=0.42;
+        del.connect(fb); fb.connect(del);
+        osc.connect(env); env.connect(this._dripGain); env.connect(del); del.connect(this._dripGain);
+        osc.start(now); osc.stop(now+1.2);
       },
 
-      _playDrip() {
-        if (!this._ctx) return;
-        const now = this._ctx.currentTime;
-        const osc = this._ctx.createOscillator();
-        const env = this._ctx.createGain();
-
-        osc.type = "sine";
-        osc.frequency.value = 880 + Math.random() * 120;
-
-        env.gain.setValueAtTime(0, now);
-        env.gain.linearRampToValueAtTime(0.3, now + 0.01);
-        env.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
-
-        // Simple room echo
-        const delay = this._ctx.createDelay();
-        delay.delayTime.value = 0.25;
-        const dFeedback = this._ctx.createGain();
-        dFeedback.gain.value = 0.45;
-        delay.connect(dFeedback);
-        dFeedback.connect(delay);
-
-        osc.connect(env);
-        env.connect(this._dripGain);
-        env.connect(delay);
-        delay.connect(this._dripGain);
-
-        osc.start(now);
-        osc.stop(now + 1);
-      },
-
-      _stopAudio() {
-        if (this._streamSrc) this._streamSrc.stop();
-        if (this._twistTimeout) clearTimeout(this._twistTimeout);
-        if (this._dripInterval) clearInterval(this._dripInterval);
-        if (this._streamGain) this._streamGain.gain.value = 0;
-        if (this._dripGain)   this._dripGain.gain.value   = 0;
+      _stopAll() {
+        if(this._twistTimer) clearTimeout(this._twistTimer);
+        if(this._dripTimer)  clearInterval(this._dripTimer);
+        if(this._streamSrc)  {try{this._streamSrc.stop();}catch(e){}}
+        if(this._streamGain) this._streamGain.gain.value=0;
+        if(this._dripGain)   this._dripGain.gain.value=0;
+        this._phase="idle";
       },
 
       _onFound(evt) {
-        if (evt.detail.name !== TARGET_NAME) return;
-        this.found = true;
-        this.scanPrompt.classList.add("hidden");
-        this.clinicalNote.classList.remove("hidden");
-
-        // Reset clinical note text
-        this.clinicalNote.innerHTML = `
-          <h3>— Thermal Imaging Active —</h3>
-          <p>Scanning body heat dissipation…<br>Water temperature: <em>critical</em>.</p>
-        `;
-
-        this._startStream();
+        if(evt.detail.name!==TARGET_NAME) return;
+        const p=document.getElementById("thermal-plane");
+        if(p){
+          p.setAttribute("visible",true);
+          p.setAttribute("animation__op","property: material.opacity; from: 0; to: 0.92; dur: 1600; easing: easeInQuad");
+        }
+        document.getElementById("scan-prompt").classList.add("hidden");
+        document.getElementById("note").classList.remove("hidden");
+        if(this._phase==="idle") this._startStream();
       },
 
       _onLost(evt) {
-        if (evt.detail.name !== TARGET_NAME) return;
-        this.found = false;
-        this.scanPrompt.classList.remove("hidden");
-        this._stopAudio();
+        if(evt.detail.name!==TARGET_NAME) return;
+        const p=document.getElementById("thermal-plane");
+        if(p) p.setAttribute("visible",false);
+        document.getElementById("scan-prompt").classList.remove("hidden");
+        document.getElementById("note").classList.add("hidden");
+        this._stopAll();
       },
 
       remove() {
-        this._stopAudio();
-        this.el.sceneEl.removeEventListener("xrimagefound", this._onFound);
-        this.el.sceneEl.removeEventListener("xrimagelost",  this._onLost);
+        this._stopAll();
+        this.el.sceneEl.removeEventListener("xrimagefound",   this._onFound);
+        this.el.sceneEl.removeEventListener("xrimageupdated", this._onFound);
+        this.el.sceneEl.removeEventListener("xrimagelost",    this._onLost);
       }
     });
   </script>
@@ -597,184 +284,110 @@
 
 <body>
 
-  <!-- ══════════════════════════════════════
-       LANDING PAGE
-       ══════════════════════════════════════ -->
   <div id="landing">
-    <div class="stamp">Dossier Médical Confidentiel</div>
-
-    <div class="title-block">
-      <h1>Ophelia</h1>
-      <h2>Evidence Archive — 1851</h2>
-    </div>
-
+    <div class="stamp">Confidential Medical Archive</div>
+    <h1>Ophelia</h1>
+    <div class="subtitle">Evidence Archive — 1851</div>
     <div class="divider"></div>
-
     <div class="case-info">
-      <div>Sujet : <span>Elizabeth Siddall</span></div>
-      <div>Artiste : <span>J.E. Millais</span></div>
-      <div>Durée d'exposition : <span>Non déterminée</span></div>
-      <div>Diagnostic : <span>Risque d'hypothermie</span></div>
+      <div>Subject : <span>Elizabeth Siddall</span></div>
+      <div>Artist : <span>J.E. Millais</span></div>
+      <div>Diagnosis : <span>Hypothermia Risk</span></div>
+      <div>Exposure duration : <span>Undetermined</span></div>
     </div>
-
     <div class="instruction-box">
       <p>
-        Pointez votre appareil photo sur l'impression<br>
-        <strong>Ophelia</strong> du dossier médical.<br><br>
-        L'imagerie thermique activera automatiquement.<br>
-        <strong>Activez le son.</strong>
+        Point your camera at the<br>
+        <strong>Ophelia</strong> print inside the dossier.<br><br>
+        Thermal imaging activates automatically.<br>
+        <strong>Turn on your phone sound.</strong>
       </p>
     </div>
-
-    <button class="btn-launch" id="btn-launch">
-      ↳ Activer la caméra AR
-    </button>
-
-    <div class="temp-indicator">TEMP CORE ↓ 35.1°C</div>
+    <button class="btn-launch" id="btn-launch">↳ Activate AR Camera</button>
+    <div class="temp-blink">CORE TEMP ↓ 35.1 °C</div>
   </div>
 
-  <!-- ══════════════════════════════════════
-       HUD OVERLAY (visible during AR)
-       ══════════════════════════════════════ -->
-  <div id="hud" class="visible">
-    <div class="corner corner-tl"></div>
-    <div class="corner corner-tr"></div>
-    <div class="corner corner-bl"></div>
-    <div class="corner corner-br"></div>
-
-    <div id="temp-scale"></div>
-
-    <div id="status-bar">
-      <span class="rec"></span>
-      Thermal Imaging — FLIR&nbsp;&nbsp;|&nbsp;&nbsp;Mode: Cold Zone Detection
-    </div>
-
+  <div id="hud">
+    <div class="corner c-tl"></div>
+    <div class="corner c-tr"></div>
+    <div class="corner c-bl"></div>
+    <div class="corner c-br"></div>
+    <div id="status"><span class="rec"></span>Thermal Imaging Active &nbsp;|&nbsp; Cold Zone Detection</div>
+    <div id="scale"></div>
+    <div id="scale-labels"><span>37°</span><span>30°</span><span>20°</span><span>10°</span><span>0°</span></div>
     <div id="scan-prompt">
-      <div class="scan-ring"></div>
-      <p>Pointez vers l'impression Ophelia</p>
+      <div class="ring"></div>
+      <p>Point at the Ophelia print</p>
     </div>
-
-    <div id="clinical-note">
-      <div id="clinical-note-inner" class="hidden">
+    <div id="note" class="hidden">
+      <div id="note-inner">
         <h3>— Thermal Imaging Active —</h3>
-        <p>Scanning body heat dissipation…<br>Water temperature: <em>critical</em>.</p>
+        <p>Body heat dissipation detected.<br>Water temperature: <em>critical</em>.</p>
       </div>
     </div>
   </div>
 
-  <!-- ══════════════════════════════════════
-       A-FRAME SCENE
-       ══════════════════════════════════════ -->
   <a-scene
-    ophelia-ar
+    ophelia-controller
     xrextras-gesture-detector
     xrextras-almost-there
     xrextras-loading
     xrextras-runtime-error
     xrweb="disableWorldTracking: true">
 
-    <!-- Assets preload -->
     <a-assets>
-      <!--
-        ╔══════════════════════════════════════════════════════╗
-        ║  REPLACE: place your Ophelia image file in assets/  ║
-        ║  and update src below + TARGET_IMAGE in <script>    ║
-        ╚══════════════════════════════════════════════════════╝
-      -->
       <img id="ophelia-img" src="assets/Ophelia_target.jpg" crossorigin="anonymous" />
     </a-assets>
 
-    <!-- Camera -->
     <a-camera position="0 4 10"></a-camera>
 
-    <!-- Image target: everything inside appears over the Ophelia print -->
     <xrextras-named-image-target name="ophelia-print">
 
-      <!-- ── Thermal overlay plane (covers the print) ──
-           Positioned flat at y=0.01 to hover just above the paper.
-           Scale matches the print's aspect ratio.
-           The thermal-lut shader transforms the image colours.
-      -->
       <a-entity
         id="thermal-plane"
-        geometry="primitive: plane; width: 1.33; height: 1.0"
-        position="0 0.01 0"
+        visible="false"
+        geometry="primitive: plane; width: 1.506; height: 1.0"
+        position="0 0.005 0"
         rotation="-90 0 0"
-        material="shader: thermal-lut; src: #ophelia-img; opacity: 0.88"
-        animation="property: material.opacity; from: 0; to: 0.88; dur: 1800; easing: easeInQuad">
-      </a-entity>
-
-      <!-- ── Temperature readout text (floats above) ── -->
-      <a-entity
-        geometry="primitive: plane; width: 0.55; height: 0.12"
-        material="color: #05101f; opacity: 0.75; transparent: true"
-        position="0.5 0.08 -0.35"
-        rotation="-90 0 0">
+        material="shader: thermal; src: #ophelia-img; opacity: 0; transparent: true">
       </a-entity>
 
       <a-text
-        value="CORE TEMP: 35.1°C ↓"
+        value="CORE: 35.1°C ↓"
         color="#5ab4d6"
-        font="https://cdn.aframe.io/fonts/Exo2Bold.fnt"
-        width="0.8"
-        position="0.5 0.1 -0.35"
+        width="0.7"
+        position="0.45 0.06 -0.42"
         rotation="-90 0 0"
         align="center"
-        animation="property: color; from: #5ab4d6; to: #1a3a6e; dir: alternate; loop: true; dur: 1200">
+        animation="property: color; from: #5ab4d6; to: #1a3a6e; dir: alternate; loop: true; dur: 1100">
       </a-text>
 
-      <!-- ── Water cold zone indicator (bottom of image) ── -->
-      <a-entity
-        geometry="primitive: plane; width: 1.33; height: 0.25"
-        material="color: #05101f; opacity: 0.55; transparent: true"
-        position="0 0.12 0.37"
-        rotation="-90 0 0">
-      </a-entity>
-
       <a-text
-        value="ZONE EAU — -2°C / HYPOTHERMIE CRITIQUE"
-        color="#0a4a8e"
-        font="https://cdn.aframe.io/fonts/Exo2Bold.fnt"
+        value="WATER ZONE — CRITICAL HYPOTHERMIA"
+        color="#0a3a7a"
         width="1.1"
-        position="0 0.13 0.37"
+        position="0 0.06 0.42"
         rotation="-90 0 0"
         align="center">
       </a-text>
 
-      <!-- ── Body heat dissipation particle-like glow ──
-           Simple pulsing sphere to suggest body losing warmth
-      -->
-      <a-sphere
-        radius="0.07"
-        material="color: #e0eeff; opacity: 0.25; transparent: true"
-        position="0 0.12 0"
-        animation__scale="property: scale; from: 1 1 1; to: 1.6 1.6 1.6; dir: alternate; loop: true; dur: 2000; easing: easeInOutSine"
-        animation__op="property: material.opacity; from: 0.05; to: 0.3; dir: alternate; loop: true; dur: 2000">
-      </a-sphere>
-
-      <!-- ── FLIR scan-line effect (horizontal strip moving down) ── -->
       <a-entity
-        id="scanline"
-        geometry="primitive: plane; width: 1.33; height: 0.008"
-        material="color: #5ab4d6; opacity: 0.35; transparent: true"
-        position="0 0.15 -0.5"
+        geometry="primitive: plane; width: 1.506; height: 0.005"
+        material="color: #5ab4d6; opacity: 0.4; transparent: true"
+        position="0 0.07 -0.5"
         rotation="-90 0 0"
-        animation="property: position; from: 0 0.15 -0.5; to: 0 0.15 0.5; loop: true; dur: 3500; easing: linear">
+        animation="property: position; from: 0 0.07 -0.5; to: 0 0.07 0.5; loop: true; dur: 3000; easing: linear">
       </a-entity>
 
     </xrextras-named-image-target>
 
   </a-scene>
 
-  <!-- ══════════════════════════════════════
-       LAUNCH BUTTON LOGIC
-       ══════════════════════════════════════ -->
   <script>
     document.getElementById("btn-launch").addEventListener("click", () => {
-      const landing = document.getElementById("landing");
-      landing.classList.add("hidden");
-      // A-Frame / 8th Wall will handle camera permission
-      setTimeout(() => landing.style.display = "none", 900);
+      document.getElementById("landing").classList.add("hidden");
+      document.getElementById("hud").classList.add("active");
+      setTimeout(() => document.getElementById("landing").style.display="none", 900);
     });
   </script>
 
