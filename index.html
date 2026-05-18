@@ -347,8 +347,8 @@
         id="thermal-plane"
         visible="false"
         geometry="primitive: plane; width: 1.506; height: 1.0"
-        position="0 0.005 0"
-        rotation="-90 0 0"
+        position="0 0 0"
+        rotation="0 0 0"
         material="shader: thermal; src: #ophelia-img; opacity: 0; transparent: true">
       </a-entity>
 
@@ -356,27 +356,27 @@
         value="CORE: 35.1°C ↓"
         color="#5ab4d6"
         width="0.7"
-        position="0.45 0.06 -0.42"
-        rotation="-90 0 0"
+        position="0.45 0.38 0.01"
+        rotation="0 0 0"
         align="center"
         animation="property: color; from: #5ab4d6; to: #1a3a6e; dir: alternate; loop: true; dur: 1100">
       </a-text>
 
       <a-text
         value="WATER ZONE — CRITICAL HYPOTHERMIA"
-        color="#0a3a7a"
+        color="#0a4a8e"
         width="1.1"
-        position="0 0.06 0.42"
-        rotation="-90 0 0"
+        position="0 -0.38 0.01"
+        rotation="0 0 0"
         align="center">
       </a-text>
 
       <a-entity
         geometry="primitive: plane; width: 1.506; height: 0.005"
         material="color: #5ab4d6; opacity: 0.4; transparent: true"
-        position="0 0.07 -0.5"
-        rotation="-90 0 0"
-        animation="property: position; from: 0 0.07 -0.5; to: 0 0.07 0.5; loop: true; dur: 3000; easing: linear">
+        position="0 -0.5 0.01"
+        rotation="0 0 0"
+        animation="property: position; from: 0 -0.5 0.01; to: 0 0.5 0.01; loop: true; dur: 3000; easing: linear">
       </a-entity>
 
     </xrextras-named-image-target>
