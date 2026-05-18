@@ -343,22 +343,25 @@
 
     <xrextras-named-image-target name="ophelia-print">
 
+      <!-- Overlay thermique : position="0 0 0.001" pour être juste devant l'image
+           rotation="0 0 0" car l'image est sur un écran vertical
+           width/height = ratio exact 640/480 = 1.333
+           scale réduit pour coller à la taille de l'image sur l'écran -->
       <a-entity
         id="thermal-plane"
         visible="false"
         geometry="primitive: plane; width: 1.333; height: 1.0"
-        position="0 0.001 0"
-        rotation="-90 0 0"
-        scale="0.5 0.5 0.5"
+        position="0 0 0.001"
+        rotation="0 0 0"
         material="shader: thermal; src: #ophelia-img; opacity: 0; transparent: true">
       </a-entity>
 
       <a-text
         value="CORE: 35.1°C ↓"
         color="#5ab4d6"
-        width="0.5"
-        position="0.25 0.05 -0.2"
-        rotation="-90 0 0"
+        width="0.4"
+        position="0.45 0.35 0.01"
+        rotation="0 0 0"
         align="center"
         animation="property: color; from: #5ab4d6; to: #1a3a6e; dir: alternate; loop: true; dur: 1100">
       </a-text>
@@ -366,18 +369,18 @@
       <a-text
         value="WATER ZONE — CRITICAL HYPOTHERMIA"
         color="#0a4a8e"
-        width="0.9"
-        position="0 0.05 0.2"
-        rotation="-90 0 0"
+        width="0.8"
+        position="0 -0.35 0.01"
+        rotation="0 0 0"
         align="center">
       </a-text>
 
       <a-entity
         geometry="primitive: plane; width: 1.333; height: 0.004"
         material="color: #5ab4d6; opacity: 0.4; transparent: true"
-        position="0 0.05 -0.25"
-        rotation="-90 0 0"
-        animation="property: position; from: 0 0.05 -0.25; to: 0 0.05 0.25; loop: true; dur: 3000; easing: linear">
+        position="0 -0.5 0.01"
+        rotation="0 0 0"
+        animation="property: position; from: 0 -0.5 0.01; to: 0 0.5 0.01; loop: true; dur: 3000; easing: linear">
       </a-entity>
 
     </xrextras-named-image-target>
