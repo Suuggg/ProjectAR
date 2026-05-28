@@ -79,13 +79,6 @@
   </script>
 
   <script>
-    /*
-      Pattern exact du README du cours (section "Adding your own assets") :
-      - video dans <a-assets> avec autoplay muted playsinline
-      - référencé par #id dans le material
-      - play/pause contrôlé par le composant JS
-      - audio via new Audio() — pattern exact de l'exemple 06_audio
-    */
     AFRAME.registerComponent("ophelia-controller", {
       init() {
         this._onFound = this._onFound.bind(this);
@@ -94,10 +87,13 @@
         this.el.sceneEl.addEventListener("xrimageupdated", this._onFound);
         this.el.sceneEl.addEventListener("xrimagelost",    this._onLost);
 
-        /* Son — pattern exemple 06_audio du cours */
+        /* Son — créé ici et exposé globalement pour le déblocage depuis le bouton */
         this._sound = new Audio("assets/Ar-sound.mp3");
         this._sound.loop = true;
         this._sound.volume = 0;
+
+        /* Expose le son au bouton pour déblocage mobile (iOS/Android) */
+        window._arSound = this._sound;
       },
 
       _fadeVol(target, ms) {
@@ -134,10 +130,16 @@
             "property: material.opacity; from: 0; to: 0.95; dur: 1200; easing: easeInQuad");
         }
 
-        /* Son : lance uniquement au scan */
-        this._sound.currentTime = 0;
-        this._sound.play().catch(e => console.warn("audio play:", e));
-        this._fadeVol(0.8, 2000);
+        /*
+          Son : lance seulement si débloqué par le tap du bouton.
+          Sur iOS/Android, audio.play() est bloqué hors interaction utilisateur directe.
+          Le flag window._arSoundUnlocked est posé lors du clic sur "Activate AR Camera".
+        */
+        if (window._arSoundUnlocked) {
+          this._sound.currentTime = 0;
+          this._sound.play().catch(e => console.warn("audio play:", e));
+          this._fadeVol(0.8, 2000);
+        }
 
         document.getElementById("scan-prompt").classList.add("hidden");
         document.getElementById("note").classList.remove("hidden");
@@ -225,7 +227,6 @@
 
     <a-assets timeout="30000">
       <img id="ophelia-img" src="assets/Ophelia_target.jpg" crossorigin="anonymous" />
-      <!-- Pattern exact du README cours section "Adding your own assets" -->
       <video id="ar-video"
         src="assets/arvideo.mp4"
         loop muted playsinline webkit-playsinline
@@ -238,11 +239,6 @@
 
     <xrextras-named-image-target name="ophelia-print">
 
-      <!--
-        material="src: #ar-video" — référence directe à la vidéo dans a-assets.
-        rotation="0 0 -90" — vidéo portrait → paysage.
-        width=1.333 height=1 — ratio 4:3 du tableau.
-      -->
       <a-entity
         id="video-plane"
         visible="false"
@@ -274,6 +270,31 @@
       document.getElementById("landing").classList.add("hidden");
       document.getElementById("hud").classList.add("active");
       setTimeout(() => document.getElementById("landing").style.display = "none", 900);
+
+      /*
+        CORRECTION CLÉ — Déblocage audio mobile (iOS Safari / Chrome Android) :
+        Les navigateurs mobiles interdisent audio.play() sauf dans un handler de tap/click direct.
+        On attend que le composant A-Frame ait créé window._arSound (quelques ms),
+        puis on fait un play() + pause() immédiat pour débloquer le contexte audio.
+        Après ça, window._arSoundUnlocked = true autorise le vrai play() dans _onFound.
+      */
+      const tryUnlock = setInterval(() => {
+        if (window._arSound) {
+          clearInterval(tryUnlock);
+          window._arSound.play()
+            .then(() => {
+              window._arSound.pause();
+              window._arSound.currentTime = 0;
+              window._arSoundUnlocked = true;
+              console.log("Audio context unlocked ✓");
+            })
+            .catch(err => {
+              console.warn("Audio unlock failed:", err);
+              /* On pose quand même le flag pour tenter la lecture */
+              window._arSoundUnlocked = true;
+            });
+        }
+      }, 50);
     });
   </script>
 
