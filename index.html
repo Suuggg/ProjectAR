@@ -122,14 +122,26 @@
           );
         }
 
-        // Play the video
+        // Play video — force via three.js texture update
         const vid = document.getElementById("ar-video");
         if (vid) {
-          vid.play().catch(e => console.warn("Video play error:", e));
+          vid.currentTime = 0;
+          const playPromise = vid.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(() => {
+              // Retry once on gesture
+              document.addEventListener("touchstart", () => vid.play(), { once: true });
+            });
+          }
+          // Force texture refresh on A-Frame material
+          if (plane && plane.components && plane.components.material) {
+            plane.components.material.material.map.needsUpdate = true;
+          }
         }
 
         // Play and fade in audio
         if (this._audio) {
+          this._audio.currentTime = 0;
           this._audio.play().catch(e => console.warn("Audio play error:", e));
           this._fadeAudio(0, 1, 2000);
         }
@@ -139,6 +151,14 @@
         document.getElementById("note").classList.remove("hidden");
 
         this._phase = "playing";
+
+        // Keep texture updating every frame
+        this._texInterval = setInterval(() => {
+          if (plane && plane.components && plane.components.material) {
+            const map = plane.components.material.material.map;
+            if (map) map.needsUpdate = true;
+          }
+        }, 33);
       },
 
       _onLost(evt) {
@@ -278,10 +298,10 @@
       <a-entity
         id="video-plane"
         visible="false"
-        geometry="primitive: plane; width: 1.333; height: 1.0"
+        geometry="primitive: plane; width: 1.778; height: 1.0"
         position="0 0 0.001"
-        rotation="0 0 -90"
-        material="src: #ar-video; opacity: 0; transparent: true">
+        rotation="0 0 0"
+        material="src: #ar-video; opacity: 0; transparent: true; side: double">
       </a-entity>
 
       <!-- Ligne de scan FLIR -->
