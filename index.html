@@ -25,12 +25,7 @@
     }
     #landing.hidden { opacity:0; pointer-events:none; }
 
-    .stamp {
-      font-size:0.6rem; letter-spacing:0.3em; color:#c0392b;
-      border:2px solid #c0392b; padding:0.3rem 1rem;
-      text-transform:uppercase; margin-bottom:2rem;
-      transform:rotate(-2deg); display:inline-block;
-    }
+    .stamp { font-size:0.6rem; letter-spacing:0.3em; color:#c0392b; border:2px solid #c0392b; padding:0.3rem 1rem; text-transform:uppercase; margin-bottom:2rem; transform:rotate(-2deg); display:inline-block; }
     h1 { font-family:'Playfair Display',serif; font-style:italic; font-size:clamp(2.2rem,8vw,3.8rem); line-height:1.05; margin-bottom:0.4rem; }
     .subtitle { font-size:0.65rem; letter-spacing:0.35em; color:#5ab4d6; text-transform:uppercase; margin-bottom:2rem; }
     .divider { width:50px; height:1px; background:#5ab4d6; margin:0 auto 2rem; opacity:0.4; }
@@ -46,7 +41,6 @@
 
     #hud { position:fixed; inset:0; z-index:50; pointer-events:none; display:none; }
     #hud.active { display:block; }
-
     .corner { position:absolute; width:22px; height:22px; border-color:rgba(90,180,214,0.7); border-style:solid; }
     .c-tl { top:16px; left:16px; border-width:2px 0 0 2px; }
     .c-tr { top:16px; right:16px; border-width:2px 2px 0 0; }
@@ -71,9 +65,6 @@
     #scan-prompt p { font-size:0.68rem; letter-spacing:0.2em; color:#5ab4d6; text-transform:uppercase; }
     .ring { width:72px; height:72px; border:2px solid #5ab4d6; border-radius:50%; border-top-color:transparent; animation:spin 1.5s linear infinite; }
     @keyframes spin { to { transform:rotate(360deg); } }
-
-    /* Cache l'élément vidéo HTML hors écran */
-    #ar-video { position:fixed; top:-9999px; left:-9999px; width:1px; height:1px; }
   </style>
 
   <script>
@@ -104,82 +95,55 @@
     AFRAME.registerComponent("ophelia-controller", {
       init() {
         this._phase = "idle";
+        this._videoReady = false;
         this._onFound = this._onFound.bind(this);
         this._onLost  = this._onLost.bind(this);
         this.el.sceneEl.addEventListener("xrimagefound",   this._onFound);
         this.el.sceneEl.addEventListener("xrimageupdated", this._onFound);
         this.el.sceneEl.addEventListener("xrimagelost",    this._onLost);
 
-        // Audio element
         this._audioEl = document.getElementById("ar-audio");
-
-        // Video element — déjà dans le DOM via <a-assets>
         this._videoEl = document.getElementById("ar-video");
 
-        // Crée la texture vidéo Three.js dès que possible
-        this._videoEl.addEventListener("loadeddata", () => {
-          this._setupVideoTexture();
-        });
-        // Sécurité : si déjà chargé
-        if (this._videoEl.readyState >= 2) this._setupVideoTexture();
-      },
-
-      _setupVideoTexture() {
-        const plane = document.getElementById("video-plane");
-        if (!plane || this._texReady) return;
-        // Attend que le mesh A-Frame soit prêt
-        const tryApply = () => {
-          const mesh = plane.getObject3D("mesh");
-          if (!mesh) { setTimeout(tryApply, 100); return; }
-          const tex = new THREE.VideoTexture(this._videoEl);
-          tex.minFilter = THREE.LinearFilter;
-          tex.magFilter = THREE.LinearFilter;
-          tex.format = THREE.RGBAFormat;
-          mesh.material.map = tex;
-          mesh.material.needsUpdate = true;
-          this._texReady = true;
-        };
-        tryApply();
+        // Force le chargement vidéo dès le montage du composant
+        this._videoEl.load();
       },
 
       _fadeAudio(targetVol, durationMs) {
         if (!this._audioEl) return;
-        const start    = this._audioEl.volume;
-        const diff     = targetVol - start;
-        const steps    = 40;
-        const interval = durationMs / steps;
+        const start = this._audioEl.volume;
+        const diff  = targetVol - start;
+        const steps = 40;
         let step = 0;
         clearInterval(this._fadeInterval);
         this._fadeInterval = setInterval(() => {
           step++;
           this._audioEl.volume = Math.min(1, Math.max(0, start + diff * (step / steps)));
           if (step >= steps) clearInterval(this._fadeInterval);
-        }, interval);
+        }, durationMs / steps);
       },
 
       _onFound(evt) {
         if (evt.detail.name !== TARGET_NAME) return;
 
-        // Affiche et anime le plan vidéo
-        const p = document.getElementById("video-plane");
-        if (p) {
-          p.setAttribute("visible", true);
-          p.setAttribute("animation__op",
+        const plane = document.getElementById("video-plane");
+        if (plane) {
+          plane.setAttribute("visible", true);
+          plane.setAttribute("animation__op",
             "property: material.opacity; from: 0; to: 0.95; dur: 1600; easing: easeInQuad");
         }
 
-        // Lance la vidéo
-        if (this._videoEl && this._videoEl.paused) {
-          this._videoEl.play().catch(e => console.warn("Video play:", e));
-        }
+        // Joue la vidéo
+        const vid = this._videoEl;
+        vid.currentTime = 0;
+        vid.play().catch(e => console.warn("Video play failed:", e));
 
-        // Lance et fade-in le son
+        // Joue le son
         if (this._audioEl) {
-          if (this._audioEl.paused) {
-            this._audioEl.volume = 0;
-            this._audioEl.play().catch(e => console.warn("Audio play:", e));
-          }
-          this._fadeAudio(0.75, 2000);
+          this._audioEl.volume = 0;
+          this._audioEl.currentTime = 0;
+          this._audioEl.play().catch(e => console.warn("Audio play failed:", e));
+          this._fadeAudio(0.8, 2000);
         }
 
         document.getElementById("scan-prompt").classList.add("hidden");
@@ -201,16 +165,15 @@
       _onLost(evt) {
         if (evt.detail.name !== TARGET_NAME) return;
 
-        const p = document.getElementById("video-plane");
-        if (p) p.setAttribute("visible", false);
+        const plane = document.getElementById("video-plane");
+        if (plane) plane.setAttribute("visible", false);
 
-        if (this._videoEl) this._videoEl.pause();
-
-        this._fadeAudio(0, 1500);
+        this._videoEl.pause();
+        this._fadeAudio(0, 1200);
         clearTimeout(this._pauseTimer);
         this._pauseTimer = setTimeout(() => {
           if (this._audioEl) this._audioEl.pause();
-        }, 1600);
+        }, 1300);
 
         document.getElementById("scan-prompt").classList.remove("hidden");
         document.getElementById("note").classList.add("hidden");
@@ -232,60 +195,11 @@
 
 <body>
 
-  <!-- Éléments média cachés hors écran -->
-  <video id="ar-video"
-    src="assets/arvideo.mp4"
-    loop muted playsinline webkit-playsinline preload="auto"
-    style="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;">
-  </video>
-  <audio id="ar-audio"
-    src="assets/Ar-sound.mp3"
-    loop preload="auto"
-    style="display:none;">
-  </audio>
-
-  <div id="landing">
-    <div class="stamp">Confidential Medical Archive</div>
-    <h1>Ophelia</h1>
-    <div class="subtitle">Evidence Archive — 1851</div>
-    <div class="divider"></div>
-    <div class="case-info">
-      <div>Subject : <span>Elizabeth Siddall</span></div>
-      <div>Artist : <span>J.E. Millais</span></div>
-      <div>Diagnosis : <span>Hypothermia Risk</span></div>
-      <div>Exposure duration : <span>Undetermined</span></div>
-    </div>
-    <div class="instruction-box">
-      <p>
-        Point your camera at the<br>
-        <strong>Ophelia</strong> print inside the dossier.<br><br>
-        Thermal imaging activates automatically.<br>
-        <strong>Turn on your phone sound.</strong>
-      </p>
-    </div>
-    <button class="btn-launch" id="btn-launch">↳ Activate AR Camera</button>
-    <div class="temp-blink">CORE TEMP ↓ 35.1 °C</div>
-  </div>
-
-  <div id="hud">
-    <div class="corner c-tl"></div>
-    <div class="corner c-tr"></div>
-    <div class="corner c-bl"></div>
-    <div class="corner c-br"></div>
-    <div id="status"><span class="rec"></span>Thermal Imaging Active &nbsp;|&nbsp; Cold Zone Detection</div>
-    <div id="scale"></div>
-    <div id="scale-labels"><span>37°</span><span>30°</span><span>20°</span><span>10°</span><span>0°</span></div>
-    <div id="scan-prompt">
-      <div class="ring"></div>
-      <p>Point at the Ophelia print</p>
-    </div>
-    <div id="note" class="hidden">
-      <div id="note-inner">
-        <h3>— Thermal Imaging Active —</h3>
-        <p>Body heat dissipation detected.<br>Water temperature: <em>critical</em>.</p>
-      </div>
-    </div>
-  </div>
+  <!--
+    IMPORTANT : la vidéo et l'audio DOIVENT être dans <a-assets> pour que
+    A-Frame les gère correctement comme textures et sources audio WebGL.
+    Le <video> dans <a-assets> est la seule méthode fiable avec 8th Wall.
+  -->
 
   <a-scene
     ophelia-controller
@@ -295,8 +209,28 @@
     xrextras-runtime-error
     xrweb="disableWorldTracking: true">
 
-    <a-assets>
-      <img id="ophelia-img" src="assets/Ophelia_target.jpg" crossorigin="anonymous" />
+    <a-assets timeout="30000">
+      <img    id="ophelia-img" src="assets/Ophelia_target.jpg" crossorigin="anonymous" />
+
+      <!--
+        Vidéo déclarée dans a-assets avec autoplay muted playsinline.
+        A-Frame crée automatiquement la VideoTexture et l'expose via #ar-video.
+        "response-type: arraybuffer" aide sur certains appareils mobiles.
+      -->
+      <video
+        id="ar-video"
+        src="assets/arvideo.mp4"
+        loop muted playsinline webkit-playsinline
+        preload="auto"
+        crossorigin="anonymous">
+      </video>
+
+      <audio
+        id="ar-audio"
+        src="assets/Ar-sound.mp3"
+        preload="auto"
+        loop>
+      </audio>
     </a-assets>
 
     <a-camera position="0 4 10"></a-camera>
@@ -305,19 +239,23 @@
 
       <!--
         Plan vidéo :
-        - rotation="0 0 0"  → pas de rotation parasite
-        - geometry width/height calés sur le ratio du tableau (4:3 = 1.333 x 1)
-        - la vidéo est en mode paysage → elle s'affiche naturellement horizontale par-dessus le tableau
-        - rotation="0 180 0" si la vidéo apparaît inversée (miroir)
+        ─ src="#ar-video"  → A-Frame pipe directement la VideoTexture
+        ─ width=1.333 height=1  → ratio paysage 4:3 calé sur le tableau
+        ─ rotation="0 0 0"  → aucune rotation, vidéo en mode paysage naturel
+        ─ position z=0.002  → légèrement devant l'image cible
+        ─ side: double  → visible des deux côtés au cas où
+        Si la vidéo apparaît à 90°, ajoute rotation="0 0 -90" ou "0 0 90"
       -->
-      <a-entity
+      <a-video
         id="video-plane"
         visible="false"
-        geometry="primitive: plane; width: 1.333; height: 1"
-        position="0 0 0.001"
+        src="#ar-video"
+        width="1.333"
+        height="1"
+        position="0 0 0.002"
         rotation="0 0 0"
-        material="shader: flat; opacity: 0; transparent: true; color: #ffffff; side: double">
-      </a-entity>
+        material="opacity: 0; transparent: true; side: double">
+      </a-video>
 
       <!-- Texte température -->
       <a-text
@@ -349,11 +287,54 @@
 
   </a-scene>
 
+  <div id="landing">
+    <div class="stamp">Confidential Medical Archive</div>
+    <h1>Ophelia</h1>
+    <div class="subtitle">Evidence Archive — 1851</div>
+    <div class="divider"></div>
+    <div class="case-info">
+      <div>Subject : <span>Elizabeth Siddall</span></div>
+      <div>Artist : <span>J.E. Millais</span></div>
+      <div>Diagnosis : <span>Hypothermia Risk</span></div>
+      <div>Exposure duration : <span>Undetermined</span></div>
+    </div>
+    <div class="instruction-box">
+      <p>
+        Point your camera at the<br>
+        <strong>Ophelia</strong> print inside the dossier.<br><br>
+        La vidéo s'active automatiquement.<br>
+        <strong>Active le son de ton téléphone.</strong>
+      </p>
+    </div>
+    <button class="btn-launch" id="btn-launch">↳ Activate AR Camera</button>
+    <div class="temp-blink">CORE TEMP ↓ 35.1 °C</div>
+  </div>
+
+  <div id="hud">
+    <div class="corner c-tl"></div>
+    <div class="corner c-tr"></div>
+    <div class="corner c-bl"></div>
+    <div class="corner c-br"></div>
+    <div id="status"><span class="rec"></span>Thermal Imaging Active &nbsp;|&nbsp; Cold Zone Detection</div>
+    <div id="scale"></div>
+    <div id="scale-labels"><span>37°</span><span>30°</span><span>20°</span><span>10°</span><span>0°</span></div>
+    <div id="scan-prompt">
+      <div class="ring"></div>
+      <p>Point at the Ophelia print</p>
+    </div>
+    <div id="note" class="hidden">
+      <div id="note-inner">
+        <h3>— Thermal Imaging Active —</h3>
+        <p>Body heat dissipation detected.<br>Water temperature: <em>critical</em>.</p>
+      </div>
+    </div>
+  </div>
+
   <script>
     document.getElementById("btn-launch").addEventListener("click", () => {
       document.getElementById("landing").classList.add("hidden");
       document.getElementById("hud").classList.add("active");
-      setTimeout(() => document.getElementById("landing").style.display="none", 900);
+      setTimeout(() => document.getElementById("landing").style.display = "none", 900);
     });
   </script>
 
