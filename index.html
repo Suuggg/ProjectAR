@@ -69,9 +69,7 @@
 
   <script>
     const TARGET_NAME  = "ophelia-print";
-    const TARGET_IMAGE = "assets/Ophelia_target.jpg";
-    const TARGET_W     = 640;
-    const TARGET_H     = 480;
+    const TARGET_IMAGE = "Ophelia_target.jpg"; /* fichiers à la racine */
 
     const onxrloaded = () => {
       XR8.XrController.configure({
@@ -81,8 +79,8 @@
           imagePath: TARGET_IMAGE,
           properties: {
             left:0, top:0,
-            width: TARGET_W, height: TARGET_H,
-            originalWidth: TARGET_W, originalHeight: TARGET_H,
+            width: 640, height: 480,
+            originalWidth: 640, originalHeight: 480,
             isRotated: false
           }
         }]
@@ -95,18 +93,13 @@
     AFRAME.registerComponent("ophelia-controller", {
       init() {
         this._phase = "idle";
-        this._videoReady = false;
         this._onFound = this._onFound.bind(this);
         this._onLost  = this._onLost.bind(this);
         this.el.sceneEl.addEventListener("xrimagefound",   this._onFound);
         this.el.sceneEl.addEventListener("xrimageupdated", this._onFound);
         this.el.sceneEl.addEventListener("xrimagelost",    this._onLost);
-
+        /* Le son est récupéré ici mais ne démarre PAS au chargement */
         this._audioEl = document.getElementById("ar-audio");
-        this._videoEl = document.getElementById("ar-video");
-
-        // Force le chargement vidéo dès le montage du composant
-        this._videoEl.load();
       },
 
       _fadeAudio(targetVol, durationMs) {
@@ -126,23 +119,25 @@
       _onFound(evt) {
         if (evt.detail.name !== TARGET_NAME) return;
 
+        /* Affiche la vidéo */
         const plane = document.getElementById("video-plane");
         if (plane) {
           plane.setAttribute("visible", true);
           plane.setAttribute("animation__op",
             "property: material.opacity; from: 0; to: 0.95; dur: 1600; easing: easeInQuad");
+          /* Lance la vidéo via le composant A-Frame */
+          const vid = document.getElementById("ar-video");
+          if (vid) {
+            vid.currentTime = 0;
+            vid.play().catch(e => console.warn("vid:", e));
+          }
         }
 
-        // Joue la vidéo
-        const vid = this._videoEl;
-        vid.currentTime = 0;
-        vid.play().catch(e => console.warn("Video play failed:", e));
-
-        // Joue le son
+        /* Lance le son UNIQUEMENT au scan */
         if (this._audioEl) {
           this._audioEl.volume = 0;
           this._audioEl.currentTime = 0;
-          this._audioEl.play().catch(e => console.warn("Audio play failed:", e));
+          this._audioEl.play().catch(e => console.warn("aud:", e));
           this._fadeAudio(0.8, 2000);
         }
 
@@ -157,8 +152,7 @@
             <h3>— Elizabeth Siddall — 1851 —</h3>
             <p>Oil lamps extinguished.<br>
             Core temperature: <em>declining</em>.<br>
-            Exposure duration: unknown.</p>
-          `;
+            Exposure duration: unknown.</p>`;
         }, 6000);
       },
 
@@ -168,7 +162,10 @@
         const plane = document.getElementById("video-plane");
         if (plane) plane.setAttribute("visible", false);
 
-        this._videoEl.pause();
+        const vid = document.getElementById("ar-video");
+        if (vid) vid.pause();
+
+        /* Fade out son puis pause */
         this._fadeAudio(0, 1200);
         clearTimeout(this._pauseTimer);
         this._pauseTimer = setTimeout(() => {
@@ -195,97 +192,8 @@
 
 <body>
 
-  <!--
-    IMPORTANT : la vidéo et l'audio DOIVENT être dans <a-assets> pour que
-    A-Frame les gère correctement comme textures et sources audio WebGL.
-    Le <video> dans <a-assets> est la seule méthode fiable avec 8th Wall.
-  -->
-
-  <a-scene
-    ophelia-controller
-    xrextras-gesture-detector
-    xrextras-almost-there
-    xrextras-loading
-    xrextras-runtime-error
-    xrweb="disableWorldTracking: true">
-
-    <a-assets timeout="30000">
-      <img    id="ophelia-img" src="assets/Ophelia_target.jpg" crossorigin="anonymous" />
-
-      <!--
-        Vidéo déclarée dans a-assets avec autoplay muted playsinline.
-        A-Frame crée automatiquement la VideoTexture et l'expose via #ar-video.
-        "response-type: arraybuffer" aide sur certains appareils mobiles.
-      -->
-      <video
-        id="ar-video"
-        src="assets/arvideo.mp4"
-        loop muted playsinline webkit-playsinline
-        preload="auto"
-        crossorigin="anonymous">
-      </video>
-
-      <audio
-        id="ar-audio"
-        src="assets/Ar-sound.mp3"
-        preload="auto"
-        loop>
-      </audio>
-    </a-assets>
-
-    <a-camera position="0 4 10"></a-camera>
-
-    <xrextras-named-image-target name="ophelia-print">
-
-      <!--
-        Plan vidéo :
-        ─ src="#ar-video"  → A-Frame pipe directement la VideoTexture
-        ─ width=1.333 height=1  → ratio paysage 4:3 calé sur le tableau
-        ─ rotation="0 0 0"  → aucune rotation, vidéo en mode paysage naturel
-        ─ position z=0.002  → légèrement devant l'image cible
-        ─ side: double  → visible des deux côtés au cas où
-        Si la vidéo apparaît à 90°, ajoute rotation="0 0 -90" ou "0 0 90"
-      -->
-      <a-video
-        id="video-plane"
-        visible="false"
-        src="#ar-video"
-        width="1.333"
-        height="1"
-        position="0 0 0.002"
-        rotation="0 0 0"
-        material="opacity: 0; transparent: true; side: double">
-      </a-video>
-
-      <!-- Texte température -->
-      <a-text
-        value="CORE: 35.1°C ↓"
-        color="#5ab4d6"
-        width="0.4"
-        position="0.45 0.35 0.01"
-        align="center"
-        animation="property: color; from: #5ab4d6; to: #1a3a6e; dir: alternate; loop: true; dur: 1100">
-      </a-text>
-
-      <a-text
-        value="WATER ZONE — CRITICAL HYPOTHERMIA"
-        color="#0a4a8e"
-        width="0.8"
-        position="0 -0.35 0.01"
-        align="center">
-      </a-text>
-
-      <!-- Ligne de scan -->
-      <a-entity
-        geometry="primitive: plane; width: 1.333; height: 0.004"
-        material="color: #5ab4d6; opacity: 0.4; transparent: true"
-        position="0 -0.5 0.01"
-        animation="property: position; from: 0 -0.5 0.01; to: 0 0.5 0.01; loop: true; dur: 3000; easing: linear">
-      </a-entity>
-
-    </xrextras-named-image-target>
-
-  </a-scene>
+  <!-- Son : pas d'autoplay, déclenché uniquement au scan -->
+  <audio id="ar-audio" src="Ar-sound.mp3" loop preload="auto" style="display:none;"></audio>
 
   <div id="landing">
     <div class="stamp">Confidential Medical Archive</div>
@@ -329,6 +237,80 @@
       </div>
     </div>
   </div>
+
+  <a-scene
+    ophelia-controller
+    xrextras-gesture-detector
+    xrextras-almost-there
+    xrextras-loading
+    xrextras-runtime-error
+    xrweb="disableWorldTracking: true">
+
+    <a-assets timeout="30000">
+      <img id="ophelia-img" src="Ophelia_target.jpg" crossorigin="anonymous" />
+      <!--
+        Vidéo dans a-assets = A-Frame gère la VideoTexture automatiquement.
+        Fichier à la racine (pas dans assets/).
+        muted obligatoire pour autoplay Safari/iOS.
+      -->
+      <video
+        id="ar-video"
+        src="arvideo.mp4"
+        loop muted playsinline webkit-playsinline
+        preload="auto"
+        crossorigin="anonymous">
+      </video>
+    </a-assets>
+
+    <a-camera position="0 4 10"></a-camera>
+
+    <xrextras-named-image-target name="ophelia-print">
+
+      <!--
+        Vidéo portrait → on la fait pivoter 90° avec rotation="0 0 90"
+        Le plan est en format paysage (width > height) pour couvrir le tableau.
+        La rotation Z de 90° redresse la vidéo portrait en paysage.
+
+        Si elle apparaît dans le mauvais sens, essaie rotation="0 0 -90"
+      -->
+      <a-video
+        id="video-plane"
+        visible="false"
+        src="#ar-video"
+        width="1"
+        height="1.333"
+        position="0 0 0.002"
+        rotation="0 0 90"
+        material="opacity: 0; transparent: true; side: double">
+      </a-video>
+
+      <a-text
+        value="CORE: 35.1°C ↓"
+        color="#5ab4d6"
+        width="0.4"
+        position="0.45 0.35 0.01"
+        align="center"
+        animation="property: color; from: #5ab4d6; to: #1a3a6e; dir: alternate; loop: true; dur: 1100">
+      </a-text>
+
+      <a-text
+        value="WATER ZONE — CRITICAL HYPOTHERMIA"
+        color="#0a4a8e"
+        width="0.8"
+        position="0 -0.35 0.01"
+        align="center">
+      </a-text>
+
+      <a-entity
+        geometry="primitive: plane; width: 1.333; height: 0.004"
+        material="color: #5ab4d6; opacity: 0.4; transparent: true"
+        position="0 -0.5 0.01"
+        animation="property: position; from: 0 -0.5 0.01; to: 0 0.5 0.01; loop: true; dur: 3000; easing: linear">
+      </a-entity>
+
+    </xrextras-named-image-target>
+
+  </a-scene>
 
   <script>
     document.getElementById("btn-launch").addEventListener("click", () => {
