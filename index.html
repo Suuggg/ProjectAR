@@ -16,6 +16,7 @@
     * { margin:0; padding:0; box-sizing:border-box; }
     body { background:#060e1a; color:#f0ede8; font-family:'Courier Prime',monospace; min-height:100vh; }
 
+    /* ── Landing ── */
     #landing {
       position:fixed; inset:0; z-index:200;
       background:#060e1a;
@@ -24,7 +25,6 @@
       transition:opacity 0.8s ease;
     }
     #landing.hidden { opacity:0; pointer-events:none; }
-
     .stamp { font-size:0.6rem; letter-spacing:0.3em; color:#c0392b; border:2px solid #c0392b; padding:0.3rem 1rem; text-transform:uppercase; margin-bottom:2rem; transform:rotate(-2deg); display:inline-block; }
     h1 { font-family:'Playfair Display',serif; font-style:italic; font-size:clamp(2.2rem,8vw,3.8rem); line-height:1.05; margin-bottom:0.4rem; }
     .subtitle { font-size:0.65rem; letter-spacing:0.35em; color:#5ab4d6; text-transform:uppercase; margin-bottom:2rem; }
@@ -39,28 +39,22 @@
     .temp-blink { position:absolute; bottom:1.5rem; right:1.5rem; font-size:0.55rem; color:#1a3a6e; letter-spacing:0.1em; animation:pulse 2s infinite; }
     @keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:1} }
 
+    /* ── HUD ── */
     #hud { position:fixed; inset:0; z-index:50; pointer-events:none; display:none; }
     #hud.active { display:block; }
-
     .corner { position:absolute; width:22px; height:22px; border-color:rgba(90,180,214,0.7); border-style:solid; }
     .c-tl { top:16px; left:16px; border-width:2px 0 0 2px; }
     .c-tr { top:16px; right:16px; border-width:2px 2px 0 0; }
     .c-bl { bottom:16px; left:16px; border-width:0 0 2px 2px; }
     .c-br { bottom:16px; right:16px; border-width:0 2px 2px 0; }
-
     #status { position:absolute; top:14px; left:50%; transform:translateX(-50%); font-size:0.52rem; letter-spacing:0.2em; color:#5ab4d6; text-transform:uppercase; white-space:nowrap; }
     .rec { display:inline-block; width:6px; height:6px; border-radius:50%; background:#c0392b; margin-right:5px; vertical-align:middle; animation:blink 1s infinite; }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
-
-    #scale { position:absolute; right:14px; top:50%; transform:translateY(-50%); width:16px; height:160px; background:linear-gradient(to bottom,#ff0000,#ff4500,#ff8c00,#ffd700,#7fff00,#00bfff,#1e40af,#060e1a); border:1px solid rgba(255,255,255,0.15); }
-    #scale-labels { position:absolute; right:34px; top:50%; transform:translateY(-50%); height:160px; display:flex; flex-direction:column; justify-content:space-between; font-size:0.48rem; color:rgba(240,237,232,0.6); text-align:right; }
-
-    #note { position:absolute; bottom:32px; left:50%; transform:translateX(-50%); width:90%; max-width:360px; text-align:center; transition:opacity 0.8s; }
-    #note.hidden { opacity:0; }
+    #note { position:absolute; bottom:32px; left:50%; transform:translateX(-50%); width:90%; max-width:360px; text-align:center; transition:opacity 0.8s; opacity:0; }
+    #note.visible { opacity:1; }
     #note-inner { background:rgba(6,14,26,0.85); border:1px solid rgba(90,180,214,0.25); padding:0.8rem 1.2rem; }
     #note h3 { font-size:0.52rem; letter-spacing:0.28em; color:#c0392b; text-transform:uppercase; margin-bottom:0.45rem; }
     #note p { font-family:'Playfair Display',serif; font-style:italic; font-size:0.82rem; line-height:1.6; color:rgba(240,237,232,0.85); }
-
     #scan-prompt { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1rem; background:rgba(6,14,26,0.65); transition:opacity 0.5s; }
     #scan-prompt.hidden { opacity:0; pointer-events:none; }
     #scan-prompt p { font-size:0.68rem; letter-spacing:0.2em; color:#5ab4d6; text-transform:uppercase; }
@@ -68,6 +62,9 @@
     @keyframes spin { to { transform:rotate(360deg); } }
   </style>
 
+  <!-- ═══════════════════════════════════════
+       IMAGE TARGET CONFIG
+       ═══════════════════════════════════════ -->
   <script>
     const TARGET_NAME  = "ophelia-print";
     const TARGET_IMAGE = "assets/Ophelia_target.jpg";
@@ -81,7 +78,7 @@
           type: "PLANAR",
           imagePath: TARGET_IMAGE,
           properties: {
-            left:0, top:0,
+            left: 0, top: 0,
             width: TARGET_W, height: TARGET_H,
             originalWidth: TARGET_W, originalHeight: TARGET_H,
             isRotated: false
@@ -92,121 +89,129 @@
     window.XR8 ? onxrloaded() : window.addEventListener("xrloaded", onxrloaded);
   </script>
 
+  <!-- ═══════════════════════════════════════
+       AR COMPONENT
+       Quand le tableau est détecté :
+       1. La vidéo se superpose via VideoTexture THREE.js
+       2. Le MP3 démarre en fondu
+       Quand perdu : tout s'arrête
+       ═══════════════════════════════════════ -->
   <script>
-    AFRAME.registerComponent("ophelia-controller", {
+    AFRAME.registerComponent("ophelia-ar", {
+
       init() {
-        this._phase = "idle";
-        this._audio = null;
+        this._active = false;
+        this._audio  = new Audio("assets/Ar-sound.mp3");
+        this._audio.loop   = true;
+        this._audio.volume = 0;
+
+        // Vidéo HTML — DOIT être muted pour autoplay sur mobile
+        this._vid = document.createElement("video");
+        this._vid.src              = "assets/arvideo.mp4";
+        this._vid.loop             = true;
+        this._vid.muted            = true;   // obligatoire sur iOS
+        this._vid.playsInline      = true;
+        this._vid.setAttribute("playsinline", "");
+        this._vid.setAttribute("webkit-playsinline", "");
+        this._vid.crossOrigin      = "anonymous";
+        this._vid.preload          = "auto";
+        document.body.appendChild(this._vid);
+
+        // Créer la VideoTexture THREE.js UNE seule fois
+        this._texture = new THREE.VideoTexture(this._vid);
+        this._texture.minFilter = THREE.LinearFilter;
+        this._texture.magFilter = THREE.LinearFilter;
+        this._texture.format    = THREE.RGBAFormat;
 
         this._onFound = this._onFound.bind(this);
         this._onLost  = this._onLost.bind(this);
         this.el.sceneEl.addEventListener("xrimagefound",   this._onFound);
         this.el.sceneEl.addEventListener("xrimageupdated", this._onFound);
         this.el.sceneEl.addEventListener("xrimagelost",    this._onLost);
-
-        // Preload audio
-        this._audio = new Audio("assets/Ar-sound.mp3");
-        this._audio.loop = true;
-        this._audio.volume = 0;
       },
 
       _onFound(evt) {
-        if (evt.detail.name !== TARGET_NAME) return;
+        if (evt.detail.name !== TARGET_NAME || this._active) return;
+        this._active = true;
 
+        // Appliquer la VideoTexture sur le mesh du plan
         const plane = document.getElementById("video-plane");
-        const vid   = document.getElementById("ar-video");
-
-        if (vid && plane) {
+        if (plane) {
           plane.setAttribute("visible", true);
 
-          // Créer une VideoTexture THREE.js — seule méthode fiable sur mobile
-          const texture = new THREE.VideoTexture(vid);
-          texture.minFilter = THREE.LinearFilter;
-          texture.magFilter = THREE.LinearFilter;
-          texture.format    = THREE.RGBFormat;
+          // Attendre que le mesh soit prêt
+          const applyTexture = () => {
+            const mesh = plane.getObject3D("mesh");
+            if (!mesh) { setTimeout(applyTexture, 100); return; }
 
-          // Appliquer au mesh directement
-          const mesh = plane.getObject3D("mesh");
-          if (mesh) {
             mesh.material = new THREE.MeshBasicMaterial({
-              map: texture,
-              transparent: true,
-              opacity: 0,
-              side: THREE.DoubleSide
+              map:         this._texture,
+              side:        THREE.DoubleSide,
+              transparent: false,
+              depthWrite:  false
             });
-            // Fade in opacity
-            let op = 0;
-            const fadeIn = setInterval(() => {
-              op = Math.min(1, op + 0.05);
-              mesh.material.opacity = op;
-              if (op >= 1) clearInterval(fadeIn);
-            }, 40);
-          }
-
-          vid.currentTime = 0;
-          vid.play().catch(() => {
-            document.addEventListener("touchstart", () => vid.play(), { once: true });
-          });
+            mesh.material.needsUpdate = true;
+          };
+          applyTexture();
         }
 
-        // Audio MP3
-        if (this._audio) {
-          this._audio.currentTime = 0;
-          this._audio.play().catch(e => console.warn("Audio:", e));
-          this._fadeAudio(0, 1, 2000);
-        }
+        // Lancer la vidéo
+        this._vid.play().catch(() => {
+          // fallback : attendre un touch
+          document.addEventListener("touchstart", () => this._vid.play(), { once: true });
+        });
 
+        // Lancer le son en fondu
+        this._audio.currentTime = 0;
+        this._audio.play().catch(() => {});
+        this._fadeTo(1, 2000);
+
+        // HUD
         document.getElementById("scan-prompt").classList.add("hidden");
-        document.getElementById("note").classList.remove("hidden");
-        this._phase = "playing";
+        document.getElementById("note").classList.add("visible");
       },
 
       _onLost(evt) {
-        if (evt.detail.name !== TARGET_NAME) return;
+        if (evt.detail.name !== TARGET_NAME || !this._active) return;
+        this._active = false;
 
-        if (this._texInterval) clearInterval(this._texInterval);
-
-        // Hide video
         const plane = document.getElementById("video-plane");
         if (plane) plane.setAttribute("visible", false);
 
-        // Pause video
-        const vid = document.getElementById("ar-video");
-        if (vid) vid.pause();
+        this._vid.pause();
+        this._vid.currentTime = 0;
 
-        // Fade out and pause audio
-        if (this._audio) {
-          this._fadeAudio(this._audio.volume, 0, 800, () => {
-            this._audio.pause();
-            this._audio.currentTime = 0;
-          });
-        }
+        this._fadeTo(0, 600, () => {
+          this._audio.pause();
+          this._audio.currentTime = 0;
+        });
 
         document.getElementById("scan-prompt").classList.remove("hidden");
-        document.getElementById("note").classList.add("hidden");
-        this._phase = "idle";
+        document.getElementById("note").classList.remove("visible");
       },
 
-      _fadeAudio(from, to, duration, callback) {
-        if (!this._audio) return;
-        const steps = 30;
-        const stepTime = duration / steps;
-        const stepSize = (to - from) / steps;
-        let current = from;
-        let count = 0;
-        const interval = setInterval(() => {
-          current += stepSize;
+      _fadeTo(target, duration, cb) {
+        const steps    = 20;
+        const interval = duration / steps;
+        const start    = this._audio.volume;
+        const delta    = (target - start) / steps;
+        let   count    = 0;
+        clearInterval(this._fadeTimer);
+        this._fadeTimer = setInterval(() => {
           count++;
-          this._audio.volume = Math.max(0, Math.min(1, current));
+          this._audio.volume = Math.min(1, Math.max(0, start + delta * count));
           if (count >= steps) {
-            clearInterval(interval);
-            if (callback) callback();
+            clearInterval(this._fadeTimer);
+            if (cb) cb();
           }
-        }, stepTime);
+        }, interval);
       },
 
       remove() {
-        if (this._audio) { this._audio.pause(); this._audio = null; }
+        clearInterval(this._fadeTimer);
+        this._audio.pause();
+        this._vid.pause();
+        document.body.removeChild(this._vid);
         this.el.sceneEl.removeEventListener("xrimagefound",   this._onFound);
         this.el.sceneEl.removeEventListener("xrimageupdated", this._onFound);
         this.el.sceneEl.removeEventListener("xrimagelost",    this._onLost);
@@ -217,6 +222,7 @@
 
 <body>
 
+  <!-- ── Landing page ── -->
   <div id="landing">
     <div class="stamp">Confidential Medical Archive</div>
     <h1>Ophelia</h1>
@@ -226,33 +232,32 @@
       <div>Subject : <span>Elizabeth Siddall</span></div>
       <div>Artist : <span>J.E. Millais</span></div>
       <div>Diagnosis : <span>Hypothermia Risk</span></div>
-      <div>Exposure duration : <span>Undetermined</span></div>
+      <div>Exposure : <span>Undetermined</span></div>
     </div>
     <div class="instruction-box">
       <p>
         Point your camera at the<br>
-        <strong>Ophelia</strong> print inside the dossier.<br><br>
-        Thermal imaging activates automatically.<br>
-        <strong>Turn on your phone sound.</strong>
+        <strong>Ophelia</strong> print.<br><br>
+        The thermal overlay activates automatically.<br>
+        <strong>Turn your phone sound on.</strong>
       </p>
     </div>
     <button class="btn-launch" id="btn-launch">↳ Activate AR Camera</button>
     <div class="temp-blink">CORE TEMP ↓ 35.1 °C</div>
   </div>
 
+  <!-- ── HUD ── -->
   <div id="hud">
     <div class="corner c-tl"></div>
     <div class="corner c-tr"></div>
     <div class="corner c-bl"></div>
     <div class="corner c-br"></div>
     <div id="status"><span class="rec"></span>Thermal Imaging Active &nbsp;|&nbsp; Cold Zone Detection</div>
-    <div id="scale"></div>
-    <div id="scale-labels"><span>37°</span><span>30°</span><span>20°</span><span>10°</span><span>0°</span></div>
     <div id="scan-prompt">
       <div class="ring"></div>
       <p>Point at the Ophelia print</p>
     </div>
-    <div id="note" class="hidden">
+    <div id="note">
       <div id="note-inner">
         <h3>— Elizabeth Siddall — 1851 —</h3>
         <p>Oil lamps extinguished.<br>Core temperature: <em>declining</em>.<br>Exposure duration: unknown.</p>
@@ -260,8 +265,15 @@
     </div>
   </div>
 
+  <!-- ═══════════════════════════════════════
+       SCÈNE A-FRAME
+       Le plan vidéo est enfant de l'image target.
+       Position/rotation = 0 : parfaitement aligné
+       sur le tableau détecté.
+       width/height = ratio de votre vidéo.
+       ═══════════════════════════════════════ -->
   <a-scene
-    ophelia-controller
+    ophelia-ar
     xrextras-gesture-detector
     xrextras-almost-there
     xrextras-loading
@@ -270,21 +282,6 @@
 
     <a-assets>
       <img id="ophelia-img" src="assets/Ophelia_target.jpg" crossorigin="anonymous" />
-      <!--
-        La vidéo est en autoplay=false, elle sera déclenchée par JS
-        playsinline est obligatoire sur iOS
-      -->
-      <video
-        id="ar-video"
-        src="assets/arvideo.mp4"
-        playsinline
-        webkit-playsinline
-        loop
-        muted
-        crossorigin="anonymous"
-        preload="auto"
-        style="display:none">
-      </video>
     </a-assets>
 
     <a-camera position="0 4 10"></a-camera>
@@ -292,28 +289,22 @@
     <xrextras-named-image-target name="ophelia-print">
 
       <!--
-        Plan vidéo superposé au tableau.
-        - rotation="0 0 0" : face à la caméra (image sur écran vertical)
-        - width=1.333 height=1.0 : ratio 640/480
-        - position="0 0 0.001" : juste devant l'image trigger
-        - La vidéo est liée via material src=#ar-video
+        CE PLAN SE SUPERPOSE AU TABLEAU.
+
+        ⚠️ AJUSTEZ width/height selon le ratio de votre vidéo :
+           - Vidéo 16:9 (1920×1080) → width="1.778" height="1"
+           - Vidéo 4:3  (640×480)   → width="1.333" height="1"
+           - Vidéo carré (1:1)      → width="1"     height="1"
+
+        rotation="0 0 0" = plan face à la caméra (image sur écran/table verticale)
+        Si le plan apparaît à plat (couché), essayez rotation="-90 0 0"
       -->
       <a-entity
         id="video-plane"
         visible="false"
-        geometry="primitive: plane; width: 1.778; height: 1.0"
+        geometry="primitive: plane; width: 1.778; height: 1"
         position="0 0 0.001"
-        rotation="0 0 0"
-        material="shader: flat; color: #000; opacity: 0; transparent: true">
-      </a-entity>
-
-      <!-- Ligne de scan FLIR -->
-      <a-entity
-        geometry="primitive: plane; width: 1.333; height: 0.004"
-        material="color: #5ab4d6; opacity: 0.35; transparent: true"
-        position="0 -0.5 0.01"
-        rotation="0 0 0"
-        animation="property: position; from: 0 -0.5 0.01; to: 0 0.5 0.01; loop: true; dur: 3000; easing: linear">
+        rotation="0 0 0">
       </a-entity>
 
     </xrextras-named-image-target>
