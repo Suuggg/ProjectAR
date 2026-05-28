@@ -15,16 +15,8 @@
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { background:#060e1a; color:#f0ede8; font-family:'Courier Prime',monospace; min-height:100vh; }
-
-    #landing {
-      position:fixed; inset:0; z-index:200;
-      background:#060e1a;
-      display:flex; flex-direction:column; align-items:center; justify-content:center;
-      padding:2rem; text-align:center;
-      transition:opacity 0.8s ease;
-    }
+    #landing { position:fixed; inset:0; z-index:200; background:#060e1a; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:2rem; text-align:center; transition:opacity 0.8s ease; }
     #landing.hidden { opacity:0; pointer-events:none; }
-
     .stamp { font-size:0.6rem; letter-spacing:0.3em; color:#c0392b; border:2px solid #c0392b; padding:0.3rem 1rem; text-transform:uppercase; margin-bottom:2rem; transform:rotate(-2deg); display:inline-block; }
     h1 { font-family:'Playfair Display',serif; font-style:italic; font-size:clamp(2.2rem,8vw,3.8rem); line-height:1.05; margin-bottom:0.4rem; }
     .subtitle { font-size:0.65rem; letter-spacing:0.35em; color:#5ab4d6; text-transform:uppercase; margin-bottom:2rem; }
@@ -38,7 +30,6 @@
     .btn-launch:hover { background:#5ab4d6; color:#060e1a; }
     .temp-blink { position:absolute; bottom:1.5rem; right:1.5rem; font-size:0.55rem; color:#1a3a6e; letter-spacing:0.1em; animation:pulse 2s infinite; }
     @keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:1} }
-
     #hud { position:fixed; inset:0; z-index:50; pointer-events:none; display:none; }
     #hud.active { display:block; }
     .corner { position:absolute; width:22px; height:22px; border-color:rgba(90,180,214,0.7); border-style:solid; }
@@ -46,30 +37,29 @@
     .c-tr { top:16px; right:16px; border-width:2px 2px 0 0; }
     .c-bl { bottom:16px; left:16px; border-width:0 0 2px 2px; }
     .c-br { bottom:16px; right:16px; border-width:0 2px 2px 0; }
-
     #status { position:absolute; top:14px; left:50%; transform:translateX(-50%); font-size:0.52rem; letter-spacing:0.2em; color:#5ab4d6; text-transform:uppercase; white-space:nowrap; }
     .rec { display:inline-block; width:6px; height:6px; border-radius:50%; background:#c0392b; margin-right:5px; vertical-align:middle; animation:blink 1s infinite; }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
-
     #scale { position:absolute; right:14px; top:50%; transform:translateY(-50%); width:16px; height:160px; background:linear-gradient(to bottom,#ff0000,#ff4500,#ff8c00,#ffd700,#7fff00,#00bfff,#1e40af,#060e1a); border:1px solid rgba(255,255,255,0.15); }
     #scale-labels { position:absolute; right:34px; top:50%; transform:translateY(-50%); height:160px; display:flex; flex-direction:column; justify-content:space-between; font-size:0.48rem; color:rgba(240,237,232,0.6); text-align:right; }
-
     #note { position:absolute; bottom:32px; left:50%; transform:translateX(-50%); width:90%; max-width:360px; text-align:center; transition:opacity 0.8s; }
     #note.hidden { opacity:0; }
     #note-inner { background:rgba(6,14,26,0.85); border:1px solid rgba(90,180,214,0.25); padding:0.8rem 1.2rem; }
     #note h3 { font-size:0.52rem; letter-spacing:0.28em; color:#c0392b; text-transform:uppercase; margin-bottom:0.45rem; }
     #note p { font-family:'Playfair Display',serif; font-style:italic; font-size:0.82rem; line-height:1.6; color:rgba(240,237,232,0.85); }
-
     #scan-prompt { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1rem; background:rgba(6,14,26,0.65); transition:opacity 0.5s; }
     #scan-prompt.hidden { opacity:0; pointer-events:none; }
     #scan-prompt p { font-size:0.68rem; letter-spacing:0.2em; color:#5ab4d6; text-transform:uppercase; }
     .ring { width:72px; height:72px; border:2px solid #5ab4d6; border-radius:50%; border-top-color:transparent; animation:spin 1.5s linear infinite; }
     @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* Canvas vidéo caché hors écran — utilisé comme source de texture */
+    #video-canvas { position:fixed; top:-9999px; left:-9999px; width:640px; height:1138px; }
   </style>
 
   <script>
     const TARGET_NAME  = "ophelia-print";
-    const TARGET_IMAGE = "assets/Ophelia_target.jpg"; /* fichiers à la racine */
+    const TARGET_IMAGE = "assets/Ophelia_target.jpg";
 
     const onxrloaded = () => {
       XR8.XrController.configure({
@@ -77,12 +67,7 @@
           name: TARGET_NAME,
           type: "PLANAR",
           imagePath: TARGET_IMAGE,
-          properties: {
-            left:0, top:0,
-            width: 640, height: 480,
-            originalWidth: 640, originalHeight: 480,
-            isRotated: false
-          }
+          properties: { left:0, top:0, width:640, height:480, originalWidth:640, originalHeight:480, isRotated:false }
         }]
       });
     };
@@ -92,96 +77,136 @@
   <script>
     AFRAME.registerComponent("ophelia-controller", {
       init() {
-        this._phase = "idle";
+        this._active   = false;
+        this._rafId    = null;
+        this._canvasTex = null;
+
         this._onFound = this._onFound.bind(this);
         this._onLost  = this._onLost.bind(this);
         this.el.sceneEl.addEventListener("xrimagefound",   this._onFound);
         this.el.sceneEl.addEventListener("xrimageupdated", this._onFound);
         this.el.sceneEl.addEventListener("xrimagelost",    this._onLost);
-        /* Le son est récupéré ici mais ne démarre PAS au chargement */
-        this._audioEl = document.getElementById("ar-audio");
+
+        this._vid = document.getElementById("ar-video");
+        this._aud = document.getElementById("ar-audio");
+        this._canvas = document.getElementById("video-canvas");
+        this._ctx2d  = this._canvas.getContext("2d");
       },
 
-      _fadeAudio(targetVol, durationMs) {
-        if (!this._audioEl) return;
-        const start = this._audioEl.volume;
-        const diff  = targetVol - start;
-        const steps = 40;
-        let step = 0;
-        clearInterval(this._fadeInterval);
-        this._fadeInterval = setInterval(() => {
-          step++;
-          this._audioEl.volume = Math.min(1, Math.max(0, start + diff * (step / steps)));
-          if (step >= steps) clearInterval(this._fadeInterval);
-        }, durationMs / steps);
+      /* Dessine la frame vidéo courante sur le canvas chaque frame,
+         et met à jour la texture Three.js. C'est la méthode la plus
+         fiable sur Safari iOS pour une VideoTexture dans WebGL. */
+      _startLoop() {
+        const draw = () => {
+          if (!this._active) return;
+          if (this._vid.readyState >= 2) {
+            this._ctx2d.drawImage(this._vid, 0, 0, this._canvas.width, this._canvas.height);
+            if (this._canvasTex) this._canvasTex.needsUpdate = true;
+          }
+          this._rafId = requestAnimationFrame(draw);
+        };
+        this._rafId = requestAnimationFrame(draw);
+      },
+
+      _stopLoop() {
+        if (this._rafId) { cancelAnimationFrame(this._rafId); this._rafId = null; }
+      },
+
+      /* Attache la CanvasTexture au mesh du plan AR une seule fois */
+      _attachTexture() {
+        if (this._canvasTex) return; // déjà fait
+        const plane = document.getElementById("video-plane");
+        if (!plane) return;
+        const mesh = plane.getObject3D("mesh");
+        if (!mesh) { setTimeout(() => this._attachTexture(), 100); return; }
+
+        const tex = new THREE.CanvasTexture(this._canvas);
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        mesh.material.map = tex;
+        mesh.material.transparent = true;
+        mesh.material.needsUpdate = true;
+        this._canvasTex = tex;
+      },
+
+      _fadeAudio(to, ms) {
+        if (!this._aud) return;
+        const from = this._aud.volume;
+        const diff = to - from;
+        const steps = 30;
+        let s = 0;
+        clearInterval(this._fadeInt);
+        this._fadeInt = setInterval(() => {
+          s++;
+          this._aud.volume = Math.min(1, Math.max(0, from + diff * s / steps));
+          if (s >= steps) clearInterval(this._fadeInt);
+        }, ms / steps);
       },
 
       _onFound(evt) {
         if (evt.detail.name !== TARGET_NAME) return;
+        if (this._active) return; // déjà actif
+        this._active = true;
 
-        /* Affiche la vidéo */
+        /* Attache la texture canvas au plan (une fois) */
+        this._attachTexture();
+
+        /* Affiche le plan */
         const plane = document.getElementById("video-plane");
         if (plane) {
           plane.setAttribute("visible", true);
           plane.setAttribute("animation__op",
-            "property: material.opacity; from: 0; to: 0.95; dur: 1600; easing: easeInQuad");
-          /* Lance la vidéo via le composant A-Frame */
-          const vid = document.getElementById("ar-video");
-          if (vid) {
-            vid.currentTime = 0;
-            vid.play().catch(e => console.warn("vid:", e));
-          }
+            "property: material.opacity; from: 0; to: 0.95; dur: 1200; easing: easeInQuad");
         }
 
-        /* Lance le son UNIQUEMENT au scan */
-        if (this._audioEl) {
-          this._audioEl.volume = 0;
-          this._audioEl.currentTime = 0;
-          this._audioEl.play().catch(e => console.warn("aud:", e));
-          this._fadeAudio(0.8, 2000);
-        }
+        /* Lance la vidéo (déjà débloquée par le geste sur le bouton) */
+        this._vid.currentTime = 0;
+        this._vid.play().catch(e => console.warn("video:", e));
+        this._startLoop();
+
+        /* Lance le son uniquement ici */
+        this._aud.currentTime = 0;
+        this._aud.volume = 0;
+        this._aud.play().catch(e => console.warn("audio:", e));
+        this._fadeAudio(0.8, 2000);
 
         document.getElementById("scan-prompt").classList.add("hidden");
         document.getElementById("note").classList.remove("hidden");
-        this._phase = "active";
 
         clearTimeout(this._twistTimer);
         this._twistTimer = setTimeout(() => {
           const ni = document.getElementById("note-inner");
           if (ni) ni.innerHTML = `
             <h3>— Elizabeth Siddall — 1851 —</h3>
-            <p>Oil lamps extinguished.<br>
-            Core temperature: <em>declining</em>.<br>
-            Exposure duration: unknown.</p>`;
+            <p>Oil lamps extinguished.<br>Core temperature: <em>declining</em>.<br>Exposure duration: unknown.</p>`;
         }, 6000);
       },
 
       _onLost(evt) {
         if (evt.detail.name !== TARGET_NAME) return;
+        this._active = false;
+
+        this._stopLoop();
+        this._vid.pause();
 
         const plane = document.getElementById("video-plane");
         if (plane) plane.setAttribute("visible", false);
 
-        const vid = document.getElementById("ar-video");
-        if (vid) vid.pause();
-
-        /* Fade out son puis pause */
-        this._fadeAudio(0, 1200);
+        /* Fade out son */
+        this._fadeAudio(0, 1000);
         clearTimeout(this._pauseTimer);
-        this._pauseTimer = setTimeout(() => {
-          if (this._audioEl) this._audioEl.pause();
-        }, 1300);
+        this._pauseTimer = setTimeout(() => { this._aud.pause(); }, 1100);
 
         document.getElementById("scan-prompt").classList.remove("hidden");
         document.getElementById("note").classList.add("hidden");
         clearTimeout(this._twistTimer);
-        this._phase = "idle";
       },
 
       remove() {
+        this._stopLoop();
         clearTimeout(this._twistTimer);
         clearTimeout(this._pauseTimer);
-        clearInterval(this._fadeInterval);
+        clearInterval(this._fadeInt);
         this.el.sceneEl.removeEventListener("xrimagefound",   this._onFound);
         this.el.sceneEl.removeEventListener("xrimageupdated", this._onFound);
         this.el.sceneEl.removeEventListener("xrimagelost",    this._onLost);
@@ -192,8 +217,18 @@
 
 <body>
 
-  <!-- Son : pas d'autoplay, déclenché uniquement au scan -->
-  <audio id="ar-audio" src="assets/Ar-sound.mp3" loop preload="auto" style="display:none;"></audio>
+  <!-- Vidéo et audio cachés. PAS d'autoplay. Débloqués via geste utilisateur. -->
+  <video id="ar-video" src="assets/arvideo.mp4"
+    loop muted playsinline webkit-playsinline preload="auto"
+    style="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;">
+  </video>
+  <audio id="ar-audio" src="assets/Ar-sound.mp3"
+    loop preload="auto"
+    style="display:none;">
+  </audio>
+
+  <!-- Canvas intermédiaire pour la texture WebGL (invisible) -->
+  <canvas id="video-canvas" width="640" height="1138"></canvas>
 
   <div id="landing">
     <div class="stamp">Confidential Medical Archive</div>
@@ -246,20 +281,8 @@
     xrextras-runtime-error
     xrweb="disableWorldTracking: true">
 
-    <a-assets timeout="30000">
+    <a-assets>
       <img id="ophelia-img" src="assets/Ophelia_target.jpg" crossorigin="anonymous" />
-      <!--
-        Vidéo dans a-assets = A-Frame gère la VideoTexture automatiquement.
-        Fichier à la racine (pas dans assets/).
-        muted obligatoire pour autoplay Safari/iOS.
-      -->
-      <video
-        id="ar-video"
-        src="assets/arvideo.mp4"
-        loop muted playsinline webkit-playsinline
-        preload="auto"
-        crossorigin="anonymous">
-      </video>
     </a-assets>
 
     <a-camera position="0 4 10"></a-camera>
@@ -267,43 +290,26 @@
     <xrextras-named-image-target name="ophelia-print">
 
       <!--
-        Vidéo portrait → on la fait pivoter 90° avec rotation="0 0 90"
-        Le plan est en format paysage (width > height) pour couvrir le tableau.
-        La rotation Z de 90° redresse la vidéo portrait en paysage.
-
-        Si elle apparaît dans le mauvais sens, essaie rotation="0 0 -90"
+        Vidéo filmée en portrait (9:16) → rotation="0 0 -90" la met en paysage.
+        width=1.333 height=1 → ratio paysage qui couvre le tableau 4:3.
+        La texture est une CanvasTexture injectée par le composant JS.
       -->
-      <!--
-        Vidéo filmée en portrait (9:16).
-        On affiche un plan en paysage (1.333 x 1) qui couvre le tableau 4:3.
-        rotation="0 0 -90" pivote le contenu portrait → paysage.
-      -->
-      <a-video
+      <a-entity
         id="video-plane"
         visible="false"
-        src="#ar-video"
-        width="1.333"
-        height="1"
+        geometry="primitive: plane; width: 1.333; height: 1"
         position="0 0 0.002"
         rotation="0 0 -90"
-        material="opacity: 0; transparent: true; side: double">
-      </a-video>
+        material="color: #ffffff; opacity: 0; transparent: true; side: double">
+      </a-entity>
 
-      <a-text
-        value="CORE: 35.1°C ↓"
-        color="#5ab4d6"
-        width="0.4"
-        position="0.45 0.35 0.01"
-        align="center"
+      <a-text value="CORE: 35.1°C ↓" color="#5ab4d6" width="0.4"
+        position="0.45 0.35 0.01" align="center"
         animation="property: color; from: #5ab4d6; to: #1a3a6e; dir: alternate; loop: true; dur: 1100">
       </a-text>
 
-      <a-text
-        value="WATER ZONE — CRITICAL HYPOTHERMIA"
-        color="#0a4a8e"
-        width="0.8"
-        position="0 -0.35 0.01"
-        align="center">
+      <a-text value="WATER ZONE — CRITICAL HYPOTHERMIA" color="#0a4a8e" width="0.8"
+        position="0 -0.35 0.01" align="center">
       </a-text>
 
       <a-entity
@@ -323,11 +329,16 @@
       document.getElementById("hud").classList.add("active");
       setTimeout(() => document.getElementById("landing").style.display = "none", 900);
 
-      /* Safari iOS : débloquer les médias depuis le geste utilisateur */
+      /*
+        SAFARI iOS : débloquer les médias depuis le geste utilisateur.
+        On fait play()+pause() immédiat → les médias sont "débloqués"
+        pour les appels play() ultérieurs dans _onFound.
+      */
       const vid = document.getElementById("ar-video");
-      if (vid) vid.play().then(() => { vid.pause(); vid.currentTime = 0; }).catch(() => {});
+      vid.play().then(() => { vid.pause(); vid.currentTime = 0; }).catch(() => {});
+
       const aud = document.getElementById("ar-audio");
-      if (aud) aud.play().then(() => { aud.pause(); aud.currentTime = 0; }).catch(() => {});
+      aud.play().then(() => { aud.pause(); aud.currentTime = 0; }).catch(() => {});
     });
   </script>
 
