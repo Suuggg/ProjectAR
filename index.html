@@ -16,13 +16,10 @@
     * { margin:0; padding:0; box-sizing:border-box; }
     body { background:#060e1a; color:#f0ede8; font-family:'Courier Prime',monospace; min-height:100vh; }
 
-    /* ── Landing ── */
     #landing {
-      position:fixed; inset:0; z-index:200;
-      background:#060e1a;
+      position:fixed; inset:0; z-index:200; background:#060e1a;
       display:flex; flex-direction:column; align-items:center; justify-content:center;
-      padding:2rem; text-align:center;
-      transition:opacity 0.8s ease;
+      padding:2rem; text-align:center; transition:opacity 0.8s ease;
     }
     #landing.hidden { opacity:0; pointer-events:none; }
     .stamp { font-size:0.6rem; letter-spacing:0.3em; color:#c0392b; border:2px solid #c0392b; padding:0.3rem 1rem; text-transform:uppercase; margin-bottom:2rem; transform:rotate(-2deg); display:inline-block; }
@@ -39,7 +36,6 @@
     .temp-blink { position:absolute; bottom:1.5rem; right:1.5rem; font-size:0.55rem; color:#1a3a6e; letter-spacing:0.1em; animation:pulse 2s infinite; }
     @keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:1} }
 
-    /* ── HUD ── */
     #hud { position:fixed; inset:0; z-index:50; pointer-events:none; display:none; }
     #hud.active { display:block; }
     .corner { position:absolute; width:22px; height:22px; border-color:rgba(90,180,214,0.7); border-style:solid; }
@@ -50,7 +46,7 @@
     #status { position:absolute; top:14px; left:50%; transform:translateX(-50%); font-size:0.52rem; letter-spacing:0.2em; color:#5ab4d6; text-transform:uppercase; white-space:nowrap; }
     .rec { display:inline-block; width:6px; height:6px; border-radius:50%; background:#c0392b; margin-right:5px; vertical-align:middle; animation:blink 1s infinite; }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
-    #note { position:absolute; bottom:32px; left:50%; transform:translateX(-50%); width:90%; max-width:360px; text-align:center; transition:opacity 0.8s; opacity:0; }
+    #note { position:absolute; bottom:32px; left:50%; transform:translateX(-50%); width:90%; max-width:360px; text-align:center; opacity:0; transition:opacity 0.8s; }
     #note.visible { opacity:1; }
     #note-inner { background:rgba(6,14,26,0.85); border:1px solid rgba(90,180,214,0.25); padding:0.8rem 1.2rem; }
     #note h3 { font-size:0.52rem; letter-spacing:0.28em; color:#c0392b; text-transform:uppercase; margin-bottom:0.45rem; }
@@ -62,9 +58,6 @@
     @keyframes spin { to { transform:rotate(360deg); } }
   </style>
 
-  <!-- ═══════════════════════════════════════
-       IMAGE TARGET CONFIG
-       ═══════════════════════════════════════ -->
   <script>
     const TARGET_NAME  = "ophelia-print";
     const TARGET_IMAGE = "assets/Ophelia_target.jpg";
@@ -89,42 +82,13 @@
     window.XR8 ? onxrloaded() : window.addEventListener("xrloaded", onxrloaded);
   </script>
 
-  <!-- ═══════════════════════════════════════
-       AR COMPONENT
-       Quand le tableau est détecté :
-       1. La vidéo se superpose via VideoTexture THREE.js
-       2. Le MP3 démarre en fondu
-       Quand perdu : tout s'arrête
-       ═══════════════════════════════════════ -->
   <script>
     AFRAME.registerComponent("ophelia-ar", {
-
       init() {
         this._active = false;
         this._audio  = new Audio("assets/Ar-sound.mp3");
         this._audio.loop   = true;
         this._audio.volume = 0;
-
-        // Vidéo HTML — DOIT être muted pour autoplay sur mobile
-        this._vid = document.createElement("video");
-        this._vid.src         = "assets/arvideo.mp4";
-        this._vid.loop        = true;
-        this._vid.muted       = true;
-        this._vid.playsInline = true;
-        this._vid.setAttribute("playsinline", "");
-        this._vid.setAttribute("webkit-playsinline", "");
-        this._vid.crossOrigin = "anonymous";
-        this._vid.preload     = "auto";
-        // Visible dans le DOM mais hors écran — obligatoire iOS pour VideoTexture
-        this._vid.style.cssText = "position:fixed;width:1px;height:1px;opacity:0.01;top:0;left:0;";
-        document.body.appendChild(this._vid);
-        this._vid.load();
-
-        // Créer la VideoTexture THREE.js UNE seule fois
-        this._texture = new THREE.VideoTexture(this._vid);
-        this._texture.minFilter = THREE.LinearFilter;
-        this._texture.magFilter = THREE.LinearFilter;
-        this._texture.format    = THREE.RGBAFormat;
 
         this._onFound = this._onFound.bind(this);
         this._onLost  = this._onLost.bind(this);
@@ -137,39 +101,15 @@
         if (evt.detail.name !== TARGET_NAME || this._active) return;
         this._active = true;
 
-        // Appliquer la VideoTexture sur le mesh du plan
+        // Montrer le plan vidéo
         const plane = document.getElementById("video-plane");
-        if (plane) {
-          plane.setAttribute("visible", true);
+        if (plane) plane.setAttribute("visible", true);
 
-          // Attendre que le mesh soit prêt
-          const applyTexture = () => {
-            const mesh = plane.getObject3D("mesh");
-            if (!mesh) { setTimeout(applyTexture, 100); return; }
-
-            mesh.material = new THREE.MeshBasicMaterial({
-              map:         this._texture,
-              side:        THREE.DoubleSide,
-              transparent: false,
-              depthWrite:  false
-            });
-            mesh.material.needsUpdate = true;
-          };
-          applyTexture();
-        }
-
-        // Lancer la vidéo
-        this._vid.play().catch(() => {
-          // fallback : attendre un touch
-          document.addEventListener("touchstart", () => this._vid.play(), { once: true });
-        });
-
-        // Lancer le son en fondu
+        // Lancer le son
         this._audio.currentTime = 0;
         this._audio.play().catch(() => {});
         this._fadeTo(1, 2000);
 
-        // HUD
         document.getElementById("scan-prompt").classList.add("hidden");
         document.getElementById("note").classList.add("visible");
       },
@@ -180,9 +120,6 @@
 
         const plane = document.getElementById("video-plane");
         if (plane) plane.setAttribute("visible", false);
-
-        this._vid.pause();
-        this._vid.currentTime = 0;
 
         this._fadeTo(0, 600, () => {
           this._audio.pause();
@@ -203,18 +140,13 @@
         this._fadeTimer = setInterval(() => {
           count++;
           this._audio.volume = Math.min(1, Math.max(0, start + delta * count));
-          if (count >= steps) {
-            clearInterval(this._fadeTimer);
-            if (cb) cb();
-          }
+          if (count >= steps) { clearInterval(this._fadeTimer); if (cb) cb(); }
         }, interval);
       },
 
       remove() {
         clearInterval(this._fadeTimer);
         this._audio.pause();
-        this._vid.pause();
-        document.body.removeChild(this._vid);
         this.el.sceneEl.removeEventListener("xrimagefound",   this._onFound);
         this.el.sceneEl.removeEventListener("xrimageupdated", this._onFound);
         this.el.sceneEl.removeEventListener("xrimagelost",    this._onLost);
@@ -225,7 +157,6 @@
 
 <body>
 
-  <!-- ── Landing page ── -->
   <div id="landing">
     <div class="stamp">Confidential Medical Archive</div>
     <h1>Ophelia</h1>
@@ -249,7 +180,6 @@
     <div class="temp-blink">CORE TEMP ↓ 35.1 °C</div>
   </div>
 
-  <!-- ── HUD ── -->
   <div id="hud">
     <div class="corner c-tl"></div>
     <div class="corner c-tr"></div>
@@ -268,13 +198,6 @@
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════════
-       SCÈNE A-FRAME
-       Le plan vidéo est enfant de l'image target.
-       Position/rotation = 0 : parfaitement aligné
-       sur le tableau détecté.
-       width/height = ratio de votre vidéo.
-       ═══════════════════════════════════════ -->
   <a-scene
     ophelia-ar
     xrextras-gesture-detector
@@ -285,29 +208,43 @@
 
     <a-assets>
       <img id="ophelia-img" src="assets/Ophelia_target.jpg" crossorigin="anonymous" />
+      <!-- xrextras-play-video est le composant OFFICIEL 8th Wall pour les vidéos sur image target -->
+      <!-- autoplay="false" : on contrôle le play nous-mêmes -->
+      <video
+        id="ar-video"
+        src="assets/arvideo.mp4"
+        preload="auto"
+        loop="true"
+        muted
+        playsinline
+        webkit-playsinline
+        crossorigin="anonymous">
+      </video>
     </a-assets>
 
     <a-camera position="0 4 10"></a-camera>
 
     <xrextras-named-image-target name="ophelia-print">
 
-      <!--
-        CE PLAN SE SUPERPOSE AU TABLEAU.
-
-        ⚠️ AJUSTEZ width/height selon le ratio de votre vidéo :
-           - Vidéo 16:9 (1920×1080) → width="1.778" height="1"
-           - Vidéo 4:3  (640×480)   → width="1.333" height="1"
-           - Vidéo carré (1:1)      → width="1"     height="1"
-
-        rotation="0 0 0" = plan face à la caméra (image sur écran/table verticale)
-        Si le plan apparaît à plat (couché), essayez rotation="-90 0 0"
+      <!-- xrextras-play-video : composant officiel 8th Wall
+           Il gère automatiquement le play/pause et l'affichage de la vidéo
+           sur l'image target. C'est la méthode qui fonctionne sur iOS/Android.
+           
+           Paramètres :
+           - video="#ar-video" : l'élément vidéo à jouer
+           - height="1" : hauteur en unités AR (1 = taille de l'image target)
+           - width calculé auto selon le ratio de la vidéo
+           
+           rotation="0 0 90" : pivote la vidéo de 90° pour la mettre à l'horizontale
       -->
       <a-entity
         id="video-plane"
         visible="false"
         geometry="primitive: plane; width: 1.778; height: 1"
         position="0 0 0.001"
-        rotation="0 0 90">
+        rotation="0 0 90"
+        material="src: #ar-video; transparent: false"
+        xrextras-play-video="video: #ar-video; allowRestart: true">
       </a-entity>
 
     </xrextras-named-image-target>
