@@ -71,6 +71,9 @@
     #scan-prompt p { font-size:0.68rem; letter-spacing:0.2em; color:#5ab4d6; text-transform:uppercase; }
     .ring { width:72px; height:72px; border:2px solid #5ab4d6; border-radius:50%; border-top-color:transparent; animation:spin 1.5s linear infinite; }
     @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* Cache l'élément vidéo HTML hors écran */
+    #ar-video { position:fixed; top:-9999px; left:-9999px; width:1px; height:1px; }
   </style>
 
   <script>
@@ -101,45 +104,42 @@
     AFRAME.registerComponent("ophelia-controller", {
       init() {
         this._phase = "idle";
-        this._audioEl = null;
-        this._videoEl = null;
         this._onFound = this._onFound.bind(this);
         this._onLost  = this._onLost.bind(this);
         this.el.sceneEl.addEventListener("xrimagefound",   this._onFound);
         this.el.sceneEl.addEventListener("xrimageupdated", this._onFound);
         this.el.sceneEl.addEventListener("xrimagelost",    this._onLost);
 
-        // Prepare HTML5 audio element for the ambient sound
-        this._audioEl = document.createElement("audio");
-        this._audioEl.src = "assets/Ar-sound.mp3";
-        this._audioEl.loop = true;
-        this._audioEl.volume = 0;
-        this._audioEl.preload = "auto";
-        document.body.appendChild(this._audioEl);
+        // Audio element
+        this._audioEl = document.getElementById("ar-audio");
 
-        // Prepare HTML5 video element (muted — audio comes from the audio element above)
-        this._videoEl = document.createElement("video");
-        this._videoEl.src = "assets/arvideo.mp4";
-        this._videoEl.loop = true;
-        this._videoEl.muted = true;          // video itself is muted; sound from audio element
-        this._videoEl.preload = "auto";
-        this._videoEl.setAttribute("playsinline", "");
-        this._videoEl.setAttribute("webkit-playsinline", "");
-        document.body.appendChild(this._videoEl);
+        // Video element — déjà dans le DOM via <a-assets>
+        this._videoEl = document.getElementById("ar-video");
 
-        // Hook video into A-Frame as a texture once it's ready
-        this._videoEl.addEventListener("canplay", () => {
-          const videoPlane = document.getElementById("video-plane");
-          if (videoPlane) {
-            const mat = videoPlane.getObject3D("mesh")?.material;
-            if (mat) {
-              const tex = new THREE.VideoTexture(this._videoEl);
-              tex.minFilter = THREE.LinearFilter;
-              mat.map = tex;
-              mat.needsUpdate = true;
-            }
-          }
+        // Crée la texture vidéo Three.js dès que possible
+        this._videoEl.addEventListener("loadeddata", () => {
+          this._setupVideoTexture();
         });
+        // Sécurité : si déjà chargé
+        if (this._videoEl.readyState >= 2) this._setupVideoTexture();
+      },
+
+      _setupVideoTexture() {
+        const plane = document.getElementById("video-plane");
+        if (!plane || this._texReady) return;
+        // Attend que le mesh A-Frame soit prêt
+        const tryApply = () => {
+          const mesh = plane.getObject3D("mesh");
+          if (!mesh) { setTimeout(tryApply, 100); return; }
+          const tex = new THREE.VideoTexture(this._videoEl);
+          tex.minFilter = THREE.LinearFilter;
+          tex.magFilter = THREE.LinearFilter;
+          tex.format = THREE.RGBAFormat;
+          mesh.material.map = tex;
+          mesh.material.needsUpdate = true;
+          this._texReady = true;
+        };
+        tryApply();
       },
 
       _fadeAudio(targetVol, durationMs) {
@@ -160,30 +160,32 @@
       _onFound(evt) {
         if (evt.detail.name !== TARGET_NAME) return;
 
-        // Show video plane
+        // Affiche et anime le plan vidéo
         const p = document.getElementById("video-plane");
         if (p) {
           p.setAttribute("visible", true);
-          p.setAttribute("animation__op", "property: material.opacity; from: 0; to: 0.95; dur: 1600; easing: easeInQuad");
+          p.setAttribute("animation__op",
+            "property: material.opacity; from: 0; to: 0.95; dur: 1600; easing: easeInQuad");
         }
 
-        // Play video
-        if (this._videoEl.paused) {
+        // Lance la vidéo
+        if (this._videoEl && this._videoEl.paused) {
           this._videoEl.play().catch(e => console.warn("Video play:", e));
         }
 
-        // Play & fade in audio
-        if (this._audioEl.paused) {
-          this._audioEl.volume = 0;
-          this._audioEl.play().catch(e => console.warn("Audio play:", e));
+        // Lance et fade-in le son
+        if (this._audioEl) {
+          if (this._audioEl.paused) {
+            this._audioEl.volume = 0;
+            this._audioEl.play().catch(e => console.warn("Audio play:", e));
+          }
+          this._fadeAudio(0.75, 2000);
         }
-        this._fadeAudio(0.75, 2000);
 
         document.getElementById("scan-prompt").classList.add("hidden");
         document.getElementById("note").classList.remove("hidden");
         this._phase = "active";
 
-        // After 6 s, update the note text (matches original behaviour)
         clearTimeout(this._twistTimer);
         this._twistTimer = setTimeout(() => {
           const ni = document.getElementById("note-inner");
@@ -202,10 +204,13 @@
         const p = document.getElementById("video-plane");
         if (p) p.setAttribute("visible", false);
 
-        // Pause video & fade out audio
-        this._videoEl.pause();
+        if (this._videoEl) this._videoEl.pause();
+
         this._fadeAudio(0, 1500);
-        setTimeout(() => { if (this._audioEl) this._audioEl.pause(); }, 1600);
+        clearTimeout(this._pauseTimer);
+        this._pauseTimer = setTimeout(() => {
+          if (this._audioEl) this._audioEl.pause();
+        }, 1600);
 
         document.getElementById("scan-prompt").classList.remove("hidden");
         document.getElementById("note").classList.add("hidden");
@@ -215,9 +220,8 @@
 
       remove() {
         clearTimeout(this._twistTimer);
+        clearTimeout(this._pauseTimer);
         clearInterval(this._fadeInterval);
-        if (this._videoEl) { this._videoEl.pause(); this._videoEl.remove(); }
-        if (this._audioEl) { this._audioEl.pause(); this._audioEl.remove(); }
         this.el.sceneEl.removeEventListener("xrimagefound",   this._onFound);
         this.el.sceneEl.removeEventListener("xrimageupdated", this._onFound);
         this.el.sceneEl.removeEventListener("xrimagelost",    this._onLost);
@@ -227,6 +231,18 @@
 </head>
 
 <body>
+
+  <!-- Éléments média cachés hors écran -->
+  <video id="ar-video"
+    src="assets/arvideo.mp4"
+    loop muted playsinline webkit-playsinline preload="auto"
+    style="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;">
+  </video>
+  <audio id="ar-audio"
+    src="assets/Ar-sound.mp3"
+    loop preload="auto"
+    style="display:none;">
+  </audio>
 
   <div id="landing">
     <div class="stamp">Confidential Medical Archive</div>
@@ -288,27 +304,27 @@
     <xrextras-named-image-target name="ophelia-print">
 
       <!--
-        Video overlay — remplace le calque thermique.
-        Le shader thermal est supprimé ; on utilise maintenant material="shader: flat"
-        avec la texture vidéo injectée dynamiquement par le composant ophelia-controller.
-        width: 1.333 = ratio 640/480 de l'image cible ; rotation="0 0 90" identique à l'original.
+        Plan vidéo :
+        - rotation="0 0 0"  → pas de rotation parasite
+        - geometry width/height calés sur le ratio du tableau (4:3 = 1.333 x 1)
+        - la vidéo est en mode paysage → elle s'affiche naturellement horizontale par-dessus le tableau
+        - rotation="0 180 0" si la vidéo apparaît inversée (miroir)
       -->
       <a-entity
         id="video-plane"
         visible="false"
-        geometry="primitive: plane; width: 1; height: 1.333"
+        geometry="primitive: plane; width: 1.333; height: 1"
         position="0 0 0.001"
-        rotation="0 0 90"
-        material="shader: flat; opacity: 0; transparent: true; color: #ffffff">
+        rotation="0 0 0"
+        material="shader: flat; opacity: 0; transparent: true; color: #ffffff; side: double">
       </a-entity>
 
-      <!-- Textes HUD conservés -->
+      <!-- Texte température -->
       <a-text
         value="CORE: 35.1°C ↓"
         color="#5ab4d6"
         width="0.4"
         position="0.45 0.35 0.01"
-        rotation="0 0 0"
         align="center"
         animation="property: color; from: #5ab4d6; to: #1a3a6e; dir: alternate; loop: true; dur: 1100">
       </a-text>
@@ -318,16 +334,14 @@
         color="#0a4a8e"
         width="0.8"
         position="0 -0.35 0.01"
-        rotation="0 0 0"
         align="center">
       </a-text>
 
-      <!-- Ligne de scan animée -->
+      <!-- Ligne de scan -->
       <a-entity
         geometry="primitive: plane; width: 1.333; height: 0.004"
         material="color: #5ab4d6; opacity: 0.4; transparent: true"
         position="0 -0.5 0.01"
-        rotation="0 0 0"
         animation="property: position; from: 0 -0.5 0.01; to: 0 0.5 0.01; loop: true; dur: 3000; easing: linear">
       </a-entity>
 
