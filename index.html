@@ -52,23 +52,15 @@
     #scan-prompt p { font-size:0.68rem; letter-spacing:0.2em; color:#5ab4d6; text-transform:uppercase; }
     .ring { width:72px; height:72px; border:2px solid #5ab4d6; border-radius:50%; border-top-color:transparent; animation:spin 1.5s linear infinite; }
     @keyframes spin { to { transform:rotate(360deg); } }
-
-    /* Canvas vidéo caché hors écran — utilisé comme source de texture */
-    #video-canvas { position:fixed; top:-9999px; left:-9999px; width:640px; height:1138px; }
   </style>
 
   <script>
     const TARGET_NAME  = "ophelia-print";
     const TARGET_IMAGE = "assets/Ophelia_target.jpg";
-
     const onxrloaded = () => {
       XR8.XrController.configure({
-        imageTargetData: [{
-          name: TARGET_NAME,
-          type: "PLANAR",
-          imagePath: TARGET_IMAGE,
-          properties: { left:0, top:0, width:640, height:480, originalWidth:640, originalHeight:480, isRotated:false }
-        }]
+        imageTargetData: [{ name: TARGET_NAME, type: "PLANAR", imagePath: TARGET_IMAGE,
+          properties: { left:0, top:0, width:640, height:480, originalWidth:640, originalHeight:480, isRotated:false } }]
       });
     };
     window.XR8 ? onxrloaded() : window.addEventListener("xrloaded", onxrloaded);
@@ -77,104 +69,61 @@
   <script>
     AFRAME.registerComponent("ophelia-controller", {
       init() {
-        this._active   = false;
-        this._rafId    = null;
-        this._canvasTex = null;
-
+        this._active = false;
         this._onFound = this._onFound.bind(this);
         this._onLost  = this._onLost.bind(this);
         this.el.sceneEl.addEventListener("xrimagefound",   this._onFound);
         this.el.sceneEl.addEventListener("xrimageupdated", this._onFound);
         this.el.sceneEl.addEventListener("xrimagelost",    this._onLost);
-
-        this._vid = document.getElementById("ar-video");
-        this._aud = document.getElementById("ar-audio");
-        this._canvas = document.getElementById("video-canvas");
-        this._ctx2d  = this._canvas.getContext("2d");
       },
 
-      /* Dessine la frame vidéo courante sur le canvas chaque frame,
-         et met à jour la texture Three.js. C'est la méthode la plus
-         fiable sur Safari iOS pour une VideoTexture dans WebGL. */
-      _startLoop() {
-        const draw = () => {
-          if (!this._active) return;
-          if (this._vid.readyState >= 2) {
-            this._ctx2d.drawImage(this._vid, 0, 0, this._canvas.width, this._canvas.height);
-            if (this._canvasTex) this._canvasTex.needsUpdate = true;
-          }
-          this._rafId = requestAnimationFrame(draw);
-        };
-        this._rafId = requestAnimationFrame(draw);
-      },
-
-      _stopLoop() {
-        if (this._rafId) { cancelAnimationFrame(this._rafId); this._rafId = null; }
-      },
-
-      /* Attache la CanvasTexture au mesh du plan AR une seule fois */
-      _attachTexture() {
-        if (this._canvasTex) return; // déjà fait
-        const plane = document.getElementById("video-plane");
-        if (!plane) return;
-        const mesh = plane.getObject3D("mesh");
-        if (!mesh) { setTimeout(() => this._attachTexture(), 100); return; }
-
-        const tex = new THREE.CanvasTexture(this._canvas);
-        tex.minFilter = THREE.LinearFilter;
-        tex.magFilter = THREE.LinearFilter;
-        mesh.material.map = tex;
-        mesh.material.transparent = true;
-        mesh.material.needsUpdate = true;
-        this._canvasTex = tex;
-      },
-
-      _fadeAudio(to, ms) {
-        if (!this._aud) return;
-        const from = this._aud.volume;
+      _fadeAudio(aud, to, ms) {
+        const from = aud.volume;
         const diff = to - from;
         const steps = 30;
         let s = 0;
         clearInterval(this._fadeInt);
         this._fadeInt = setInterval(() => {
           s++;
-          this._aud.volume = Math.min(1, Math.max(0, from + diff * s / steps));
+          aud.volume = Math.min(1, Math.max(0, from + diff * s / steps));
           if (s >= steps) clearInterval(this._fadeInt);
         }, ms / steps);
       },
 
       _onFound(evt) {
-        if (evt.detail.name !== TARGET_NAME) return;
-        if (this._active) return; // déjà actif
+        if (evt.detail.name !== TARGET_NAME || this._active) return;
         this._active = true;
 
-        /* Attache la texture canvas au plan (une fois) */
-        this._attachTexture();
+        const plane = document.getElementById("video-plane");
+        const vid   = document.getElementById("ar-video");
+        const aud   = document.getElementById("ar-audio");
 
         /* Affiche le plan */
-        const plane = document.getElementById("video-plane");
         if (plane) {
           plane.setAttribute("visible", true);
           plane.setAttribute("animation__op",
             "property: material.opacity; from: 0; to: 0.95; dur: 1200; easing: easeInQuad");
         }
 
-        /* Lance la vidéo (déjà débloquée par le geste sur le bouton) */
-        this._vid.currentTime = 0;
-        this._vid.play().catch(e => console.warn("video:", e));
-        this._startLoop();
+        /* Lance la vidéo */
+        if (vid) {
+          vid.currentTime = 0;
+          vid.play().catch(e => console.warn("vid:", e));
+        }
 
-        /* Lance le son uniquement ici */
-        this._aud.currentTime = 0;
-        this._aud.volume = 0;
-        this._aud.play().catch(e => console.warn("audio:", e));
-        this._fadeAudio(0.8, 2000);
+        /* Lance le son uniquement au scan */
+        if (aud) {
+          aud.volume = 0;
+          aud.currentTime = 0;
+          aud.play().catch(e => console.warn("aud:", e));
+          this._fadeAudio(aud, 0.8, 2000);
+        }
 
         document.getElementById("scan-prompt").classList.add("hidden");
         document.getElementById("note").classList.remove("hidden");
 
-        clearTimeout(this._twistTimer);
-        this._twistTimer = setTimeout(() => {
+        clearTimeout(this._noteTimer);
+        this._noteTimer = setTimeout(() => {
           const ni = document.getElementById("note-inner");
           if (ni) ni.innerHTML = `
             <h3>— Elizabeth Siddall — 1851 —</h3>
@@ -186,26 +135,21 @@
         if (evt.detail.name !== TARGET_NAME) return;
         this._active = false;
 
-        this._stopLoop();
-        this._vid.pause();
-
         const plane = document.getElementById("video-plane");
-        if (plane) plane.setAttribute("visible", false);
+        const vid   = document.getElementById("ar-video");
+        const aud   = document.getElementById("ar-audio");
 
-        /* Fade out son */
-        this._fadeAudio(0, 1000);
-        clearTimeout(this._pauseTimer);
-        this._pauseTimer = setTimeout(() => { this._aud.pause(); }, 1100);
+        if (plane) plane.setAttribute("visible", false);
+        if (vid)   vid.pause();
+        if (aud)   { this._fadeAudio(aud, 0, 1000); setTimeout(() => aud.pause(), 1100); }
 
         document.getElementById("scan-prompt").classList.remove("hidden");
         document.getElementById("note").classList.add("hidden");
-        clearTimeout(this._twistTimer);
+        clearTimeout(this._noteTimer);
       },
 
       remove() {
-        this._stopLoop();
-        clearTimeout(this._twistTimer);
-        clearTimeout(this._pauseTimer);
+        clearTimeout(this._noteTimer);
         clearInterval(this._fadeInt);
         this.el.sceneEl.removeEventListener("xrimagefound",   this._onFound);
         this.el.sceneEl.removeEventListener("xrimageupdated", this._onFound);
@@ -217,18 +161,12 @@
 
 <body>
 
-  <!-- Vidéo et audio cachés. PAS d'autoplay. Débloqués via geste utilisateur. -->
+  <!-- Médias hors écran, pas d'autoplay -->
   <video id="ar-video" src="assets/arvideo.mp4"
     loop muted playsinline webkit-playsinline preload="auto"
-    style="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;">
-  </video>
+    style="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;"></video>
   <audio id="ar-audio" src="assets/Ar-sound.mp3"
-    loop preload="auto"
-    style="display:none;">
-  </audio>
-
-  <!-- Canvas intermédiaire pour la texture WebGL (invisible) -->
-  <canvas id="video-canvas" width="640" height="1138"></canvas>
+    loop preload="auto" style="display:none;"></audio>
 
   <div id="landing">
     <div class="stamp">Confidential Medical Archive</div>
@@ -242,29 +180,20 @@
       <div>Exposure duration : <span>Undetermined</span></div>
     </div>
     <div class="instruction-box">
-      <p>
-        Point your camera at the<br>
-        <strong>Ophelia</strong> print inside the dossier.<br><br>
-        La vidéo s'active automatiquement.<br>
-        <strong>Active le son de ton téléphone.</strong>
-      </p>
+      <p>Point your camera at the<br><strong>Ophelia</strong> print inside the dossier.<br><br>
+      La vidéo s'active automatiquement.<br><strong>Active le son de ton téléphone.</strong></p>
     </div>
     <button class="btn-launch" id="btn-launch">↳ Activate AR Camera</button>
     <div class="temp-blink">CORE TEMP ↓ 35.1 °C</div>
   </div>
 
   <div id="hud">
-    <div class="corner c-tl"></div>
-    <div class="corner c-tr"></div>
-    <div class="corner c-bl"></div>
-    <div class="corner c-br"></div>
+    <div class="corner c-tl"></div><div class="corner c-tr"></div>
+    <div class="corner c-bl"></div><div class="corner c-br"></div>
     <div id="status"><span class="rec"></span>Thermal Imaging Active &nbsp;|&nbsp; Cold Zone Detection</div>
     <div id="scale"></div>
     <div id="scale-labels"><span>37°</span><span>30°</span><span>20°</span><span>10°</span><span>0°</span></div>
-    <div id="scan-prompt">
-      <div class="ring"></div>
-      <p>Point at the Ophelia print</p>
-    </div>
+    <div id="scan-prompt"><div class="ring"></div><p>Point at the Ophelia print</p></div>
     <div id="note" class="hidden">
       <div id="note-inner">
         <h3>— Thermal Imaging Active —</h3>
@@ -281,8 +210,13 @@
     xrextras-runtime-error
     xrweb="disableWorldTracking: true">
 
-    <a-assets>
+    <a-assets timeout="30000">
       <img id="ophelia-img" src="assets/Ophelia_target.jpg" crossorigin="anonymous" />
+      <!-- La vidéo dans a-assets = A-Frame crée automatiquement la VideoTexture -->
+      <video id="ar-video-asset" src="assets/arvideo.mp4"
+        loop muted playsinline webkit-playsinline
+        preload="auto" crossorigin="anonymous">
+      </video>
     </a-assets>
 
     <a-camera position="0 4 10"></a-camera>
@@ -290,28 +224,29 @@
     <xrextras-named-image-target name="ophelia-print">
 
       <!--
-        Vidéo filmée en portrait (9:16) → rotation="0 0 -90" la met en paysage.
-        width=1.333 height=1 → ratio paysage qui couvre le tableau 4:3.
-        La texture est une CanvasTexture injectée par le composant JS.
+        Vidéo portrait (9:16) affichée en paysage sur le tableau (4:3).
+        - width=1.333 height=1 → format paysage
+        - rotation="0 0 -90" → pivote le contenu portrait en paysage
+        - src="#ar-video-asset" → texture gérée nativement par A-Frame
       -->
-      <a-entity
+      <a-video
         id="video-plane"
         visible="false"
-        geometry="primitive: plane; width: 1.333; height: 1"
+        src="#ar-video-asset"
+        width="1.333"
+        height="1"
         position="0 0 0.002"
         rotation="0 0 -90"
-        material="color: #ffffff; opacity: 0; transparent: true; side: double">
-      </a-entity>
+        material="opacity: 0; transparent: true; side: double">
+      </a-video>
 
       <a-text value="CORE: 35.1°C ↓" color="#5ab4d6" width="0.4"
         position="0.45 0.35 0.01" align="center"
         animation="property: color; from: #5ab4d6; to: #1a3a6e; dir: alternate; loop: true; dur: 1100">
       </a-text>
-
       <a-text value="WATER ZONE — CRITICAL HYPOTHERMIA" color="#0a4a8e" width="0.8"
         position="0 -0.35 0.01" align="center">
       </a-text>
-
       <a-entity
         geometry="primitive: plane; width: 1.333; height: 0.004"
         material="color: #5ab4d6; opacity: 0.4; transparent: true"
@@ -320,7 +255,6 @@
       </a-entity>
 
     </xrextras-named-image-target>
-
   </a-scene>
 
   <script>
@@ -330,15 +264,15 @@
       setTimeout(() => document.getElementById("landing").style.display = "none", 900);
 
       /*
-        SAFARI iOS : débloquer les médias depuis le geste utilisateur.
-        On fait play()+pause() immédiat → les médias sont "débloqués"
-        pour les appels play() ultérieurs dans _onFound.
+        Déblocage Safari iOS : un play()+pause() depuis le geste utilisateur
+        autorise les play() ultérieurs déclenchés par le scan.
       */
-      const vid = document.getElementById("ar-video");
-      vid.play().then(() => { vid.pause(); vid.currentTime = 0; }).catch(() => {});
-
-      const aud = document.getElementById("ar-audio");
-      aud.play().then(() => { aud.pause(); aud.currentTime = 0; }).catch(() => {});
+      const vid  = document.getElementById("ar-video");
+      const vidA = document.getElementById("ar-video-asset");
+      const aud  = document.getElementById("ar-audio");
+      [vid, vidA, aud].forEach(el => {
+        if (el) el.play().then(() => { el.pause(); el.currentTime = 0; }).catch(() => {});
+      });
     });
   </script>
 
