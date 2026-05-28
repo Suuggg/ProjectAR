@@ -87,17 +87,28 @@
         this.el.sceneEl.addEventListener("xrimageupdated", this._onFound);
         this.el.sceneEl.addEventListener("xrimagelost",    this._onLost);
 
-        /* Son — créé ici et exposé globalement pour le déblocage depuis le bouton */
-        this._sound = new Audio("assets/Ar-sound.mp3");
-        this._sound.loop = true;
-        this._sound.volume = 0;
+        /*
+          On NE crée PAS le son ici.
+          Il sera créé uniquement au moment du scan dans _onFound,
+          après que le bouton ait débloqué le contexte audio.
+        */
+        this._sound = null;
+        this._fi    = null;
+        this._t     = null;
+      },
 
-        /* Expose le son au bouton pour déblocage mobile (iOS/Android) */
-        window._arSound = this._sound;
+      _getSound() {
+        /* Crée l'objet Audio une seule fois, après le tap utilisateur */
+        if (!this._sound) {
+          this._sound = new Audio("assets/Ar-sound.mp3");
+          this._sound.loop   = true;
+          this._sound.volume = 0;
+        }
+        return this._sound;
       },
 
       _fadeVol(target, ms) {
-        const snd  = this._sound;
+        const snd  = this._getSound();
         const from = snd.volume;
         const diff = target - from;
         const steps = 30;
@@ -108,7 +119,10 @@
           snd.volume = Math.min(1, Math.max(0, from + diff * s / steps));
           if (s >= steps) {
             clearInterval(this._fi);
-            if (target === 0) snd.pause();
+            if (target === 0) {
+              snd.pause();
+              snd.currentTime = 0;
+            }
           }
         }, ms / steps);
       },
@@ -116,13 +130,13 @@
       _onFound(evt) {
         if (evt.detail.name !== TARGET_NAME) return;
 
-        /* Vidéo : récupère l'élément depuis a-assets et lance-le */
+        /* Vidéo */
         const vid = document.querySelector("#ar-video");
         if (vid) {
           vid.play().catch(e => console.warn("video play:", e));
         }
 
-        /* Plan : rend visible */
+        /* Plan */
         const plane = document.querySelector("#video-plane");
         if (plane) {
           plane.setAttribute("visible", true);
@@ -130,14 +144,13 @@
             "property: material.opacity; from: 0; to: 0.95; dur: 1200; easing: easeInQuad");
         }
 
-        /*
-          Son : lance seulement si débloqué par le tap du bouton.
-          Sur iOS/Android, audio.play() est bloqué hors interaction utilisateur directe.
-          Le flag window._arSoundUnlocked est posé lors du clic sur "Activate AR Camera".
-        */
-        if (window._arSoundUnlocked) {
-          this._sound.currentTime = 0;
-          this._sound.play().catch(e => console.warn("audio play:", e));
+        /* Son — uniquement si le contexte audio a été débloqué par le tap bouton */
+        if (window._audioContextUnlocked) {
+          const snd = this._getSound();
+          clearInterval(this._fi);
+          snd.volume = 0;
+          snd.currentTime = 0;
+          snd.play().catch(e => console.warn("audio play:", e));
           this._fadeVol(0.8, 2000);
         }
 
@@ -156,14 +169,21 @@
       _onLost(evt) {
         if (evt.detail.name !== TARGET_NAME) return;
 
+        /* Vidéo */
         const vid = document.querySelector("#ar-video");
         if (vid) vid.pause();
 
+        /* Plan */
         const plane = document.querySelector("#video-plane");
         if (plane) plane.setAttribute("visible", false);
 
-        /* Son : fondu 0.8s puis pause */
-        this._fadeVol(0, 800);
+        /* Son — stop immédiat, pas de fade qui peut se croiser */
+        clearInterval(this._fi);
+        if (this._sound) {
+          this._sound.pause();
+          this._sound.currentTime = 0;
+          this._sound.volume = 0;
+        }
 
         document.getElementById("scan-prompt").classList.remove("hidden");
         document.getElementById("note").classList.add("hidden");
@@ -272,29 +292,25 @@
       setTimeout(() => document.getElementById("landing").style.display = "none", 900);
 
       /*
-        CORRECTION CLÉ — Déblocage audio mobile (iOS Safari / Chrome Android) :
-        Les navigateurs mobiles interdisent audio.play() sauf dans un handler de tap/click direct.
-        On attend que le composant A-Frame ait créé window._arSound (quelques ms),
-        puis on fait un play() + pause() immédiat pour débloquer le contexte audio.
-        Après ça, window._arSoundUnlocked = true autorise le vrai play() dans _onFound.
+        Déblocage du contexte audio mobile au moment du tap utilisateur.
+        On crée un AudioContext silencieux juste pour débloquer le navigateur.
+        Aucun son ne joue ici — le vrai son sera créé dans _onFound au moment du scan.
       */
-      const tryUnlock = setInterval(() => {
-        if (window._arSound) {
-          clearInterval(tryUnlock);
-          window._arSound.play()
-            .then(() => {
-              window._arSound.pause();
-              window._arSound.currentTime = 0;
-              window._arSoundUnlocked = true;
-              console.log("Audio context unlocked ✓");
-            })
-            .catch(err => {
-              console.warn("Audio unlock failed:", err);
-              /* On pose quand même le flag pour tenter la lecture */
-              window._arSoundUnlocked = true;
-            });
-        }
-      }, 50);
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const buf = ctx.createBuffer(1, 1, 22050);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(ctx.destination);
+        src.start(0);
+        ctx.resume().then(() => {
+          window._audioContextUnlocked = true;
+          console.log("Audio context unlocked ✓");
+        });
+      } catch(e) {
+        /* Navigateur sans AudioContext — on pose quand même le flag */
+        window._audioContextUnlocked = true;
+      }
     });
   </script>
 
