@@ -68,9 +68,9 @@
 
   <script>
     /*
-      Shader "flat-video" : identique au shader original (qui fonctionnait),
-      mais au lieu du filtre thermique on affiche juste la texture src telle quelle.
-      C'est le même pipeline WebGL que le shader thermique — donc ça marche.
+      Shader identique au shader thermique original qui marchait.
+      Seule différence : pas de filtre couleur, on affiche la texture telle quelle.
+      La rotation 90° est faite dans les UVs (vidéo portrait → paysage).
     */
     AFRAME.registerShader("flat-video", {
       schema: {
@@ -79,14 +79,16 @@
       },
       vertexShader: `
         varying vec2 vUv;
-        void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
       `,
       fragmentShader: `
         uniform sampler2D src;
         uniform float opacity;
         varying vec2 vUv;
         void main() {
-          /* Rotation 90° dans le shader : on pivote les UVs */
           vec2 uv = vec2(vUv.y, 1.0 - vUv.x);
           vec4 col = texture2D(src, uv);
           gl_FragColor = vec4(col.rgb, opacity);
@@ -96,12 +98,37 @@
 
     AFRAME.registerComponent("ophelia-controller", {
       init() {
-        this._active = false;
+        this._active     = false;
+        this._texInited  = false;
         this._onFound = this._onFound.bind(this);
         this._onLost  = this._onLost.bind(this);
         this.el.sceneEl.addEventListener("xrimagefound",   this._onFound);
         this.el.sceneEl.addEventListener("xrimageupdated", this._onFound);
         this.el.sceneEl.addEventListener("xrimagelost",    this._onLost);
+      },
+
+      /*
+        Injecte la VideoTexture Three.js dans le shader.
+        Appelé UNE seule fois, après le premier geste utilisateur
+        (le bouton a déjà débloqué la vidéo avec play()+pause()).
+      */
+      _initVideoTexture() {
+        if (this._texInited) return;
+        const plane = document.getElementById("video-plane");
+        if (!plane) return;
+        const mesh = plane.getObject3D("mesh");
+        if (!mesh) { setTimeout(() => this._initVideoTexture(), 100); return; }
+
+        const vid = document.getElementById("ar-video");
+        const tex = new THREE.VideoTexture(vid);
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.format    = THREE.RGBFormat;
+        // Injecte dans les uniforms du shader flat-video
+        mesh.material.uniforms.src.value = tex;
+        mesh.material.needsUpdate = true;
+        this._texInited = true;
+        console.log("VideoTexture injectée");
       },
 
       _fadeAudio(aud, to, ms) {
@@ -119,18 +146,20 @@
         if (evt.detail.name !== TARGET_NAME || this._active) return;
         this._active = true;
 
+        /* Injecte la texture vidéo si pas encore fait */
+        this._initVideoTexture();
+
         const plane = document.getElementById("video-plane");
         const vid   = document.getElementById("ar-video");
         const aud   = document.getElementById("ar-audio");
 
-        /* Affiche et fade-in le plan */
         if (plane) {
           plane.setAttribute("visible", true);
           plane.setAttribute("animation__op",
             "property: material.opacity; from: 0; to: 0.95; dur: 1200; easing: easeInQuad");
         }
 
-        /* Lance la vidéo — déjà débloquée par le geste sur le bouton */
+        /* Lance la vidéo en boucle */
         if (vid) {
           vid.currentTime = 0;
           vid.play().catch(e => console.warn("vid:", e));
@@ -165,7 +194,10 @@
 
         if (plane) plane.setAttribute("visible", false);
         if (vid)   vid.pause();
-        if (aud)   { this._fadeAudio(aud, 0, 1000); setTimeout(() => aud.pause(), 1100); }
+        if (aud)   {
+          this._fadeAudio(aud, 0, 1000);
+          setTimeout(() => aud.pause(), 1100);
+        }
 
         document.getElementById("scan-prompt").classList.remove("hidden");
         document.getElementById("note").classList.add("hidden");
@@ -184,6 +216,17 @@
 </head>
 
 <body>
+
+  <!--
+    Vidéo hors écran. PAS dans <a-assets>.
+    On crée la VideoTexture Three.js manuellement — c'est plus fiable sur Safari iOS
+    que de laisser A-Frame gérer une VideoTexture depuis <a-assets>.
+  -->
+  <video id="ar-video"
+    src="assets/arvideo.mp4"
+    loop muted playsinline webkit-playsinline preload="auto"
+    style="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;">
+  </video>
 
   <audio id="ar-audio" src="assets/Ar-sound.mp3" loop preload="auto" style="display:none;"></audio>
 
@@ -231,17 +274,6 @@
 
     <a-assets timeout="30000">
       <img id="ophelia-img" src="assets/Ophelia_target.jpg" crossorigin="anonymous" />
-      <!--
-        La vidéo dans a-assets avec autoplay muted.
-        8th Wall / A-Frame gère automatiquement la VideoTexture via src="#ar-video".
-        autoplay est nécessaire ici pour que A-Frame initialise la texture —
-        le vrai play/pause est contrôlé par le composant JS.
-      -->
-      <video id="ar-video"
-        src="assets/arvideo.mp4"
-        autoplay loop muted playsinline webkit-playsinline
-        preload="auto" crossorigin="anonymous">
-      </video>
     </a-assets>
 
     <a-camera position="0 4 10"></a-camera>
@@ -249,10 +281,10 @@
     <xrextras-named-image-target name="ophelia-print">
 
       <!--
-        shader: flat-video → même pipeline que le shader thermique original.
-        La rotation 90° est faite dans les UVs du shader (vec2(vUv.y, 1.0-vUv.x)).
-        width=1.333 height=1 → ratio paysage sur le tableau 4:3.
-        rotation="0 0 0" → pas de rotation 3D, tout se passe dans le shader.
+        Shader flat-video = même pipeline que le shader thermique original.
+        src: #ophelia-img est un placeholder — il sera remplacé par la
+        VideoTexture injectée manuellement dans _initVideoTexture().
+        width=1.333 height=1 → ratio paysage. Rotation dans les UVs du shader.
       -->
       <a-entity
         id="video-plane"
@@ -260,7 +292,7 @@
         geometry="primitive: plane; width: 1.333; height: 1"
         position="0 0 0.002"
         rotation="0 0 0"
-        material="shader: flat-video; src: #ar-video; opacity: 0; transparent: true">
+        material="shader: flat-video; src: #ophelia-img; opacity: 0; transparent: true">
       </a-entity>
 
       <a-text value="CORE: 35.1°C ↓" color="#5ab4d6" width="0.4"
@@ -286,11 +318,15 @@
       document.getElementById("hud").classList.add("active");
       setTimeout(() => document.getElementById("landing").style.display = "none", 900);
 
-      /* Déblocage Safari iOS depuis le geste utilisateur */
+      /*
+        Safari iOS : débloquer la vidéo ET l'audio depuis le geste utilisateur.
+        play()+pause() immédiat = les médias sont "débloqués" pour les
+        appels play() ultérieurs dans _onFound.
+      */
       const vid = document.getElementById("ar-video");
       const aud = document.getElementById("ar-audio");
-      if (vid) vid.play().then(() => { vid.pause(); vid.currentTime = 0; }).catch(() => {});
-      if (aud) aud.play().then(() => { aud.pause(); aud.currentTime = 0; }).catch(() => {});
+      vid.play().then(() => { vid.pause(); vid.currentTime = 0; }).catch(() => {});
+      aud.play().then(() => { aud.pause(); aud.currentTime = 0; }).catch(() => {});
     });
   </script>
 
