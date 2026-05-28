@@ -25,12 +25,7 @@
     }
     #landing.hidden { opacity:0; pointer-events:none; }
 
-    .stamp {
-      font-size:0.6rem; letter-spacing:0.3em; color:#c0392b;
-      border:2px solid #c0392b; padding:0.3rem 1rem;
-      text-transform:uppercase; margin-bottom:2rem;
-      transform:rotate(-2deg); display:inline-block;
-    }
+    .stamp { font-size:0.6rem; letter-spacing:0.3em; color:#c0392b; border:2px solid #c0392b; padding:0.3rem 1rem; text-transform:uppercase; margin-bottom:2rem; transform:rotate(-2deg); display:inline-block; }
     h1 { font-family:'Playfair Display',serif; font-style:italic; font-size:clamp(2.2rem,8vw,3.8rem); line-height:1.05; margin-bottom:0.4rem; }
     .subtitle { font-size:0.65rem; letter-spacing:0.35em; color:#5ab4d6; text-transform:uppercase; margin-bottom:2rem; }
     .divider { width:50px; height:1px; background:#5ab4d6; margin:0 auto 2rem; opacity:0.4; }
@@ -98,182 +93,98 @@
   </script>
 
   <script>
-    AFRAME.registerShader("thermal", {
-      schema: {
-        src:     { type:"map" },
-        time:    { type:"time", is:"uniform" },
-        opacity: { type:"number", default:0, is:"uniform" }
-      },
-      vertexShader: `
-        varying vec2 vUv;
-        void main() { vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }
-      `,
-      fragmentShader: `
-        uniform sampler2D src;
-        uniform float time;
-        uniform float opacity;
-        varying vec2 vUv;
-
-        vec3 pal(float t) {
-          vec3 c0=vec3(0.02,0.05,0.20);
-          vec3 c1=vec3(0.00,0.20,0.70);
-          vec3 c2=vec3(0.00,0.75,0.90);
-          vec3 c3=vec3(0.10,0.90,0.10);
-          vec3 c4=vec3(1.00,0.80,0.00);
-          vec3 c5=vec3(1.00,0.30,0.00);
-          vec3 c6=vec3(1.00,0.00,0.00);
-          if(t<0.166) return mix(c0,c1,t/0.166);
-          if(t<0.333) return mix(c1,c2,(t-0.166)/0.166);
-          if(t<0.500) return mix(c2,c3,(t-0.333)/0.166);
-          if(t<0.666) return mix(c3,c4,(t-0.500)/0.166);
-          if(t<0.833) return mix(c4,c5,(t-0.666)/0.166);
-          return mix(c5,c6,(t-0.833)/0.166);
-        }
-
-        void main() {
-          vec4 px = texture2D(src, vUv);
-          float lum = dot(px.rgb, vec3(0.299,0.587,0.114));
-          float water = smoothstep(0.45,0.75, vUv.y);
-          float plant = clamp((1.0-smoothstep(0.0,0.45,vUv.y)) + smoothstep(0.0,0.2,1.0-abs(vUv.x-0.5)*2.0), 0.0,1.0);
-          float cx=abs(vUv.x-0.5); float cy=abs(vUv.y-0.55);
-          float body=smoothstep(0.25,0.0,sqrt(cx*cx+cy*cy*1.8));
-          float th=lum;
-          th=mix(th, th*0.2,  water*0.9);
-          th=mix(th, 0.6+lum*0.4, plant*0.5);
-          float dis=0.3+0.08*sin(time*0.0008+vUv.y*6.0);
-          th=mix(th, dis, body*0.7);
-          th=clamp(th,0.0,1.0);
-          vec3 col=pal(th);
-          float pulse=0.04*sin(time*0.001+vUv.x*4.0);
-          col=clamp(col+vec3(pulse*body),0.0,1.0);
-          gl_FragColor=vec4(col,opacity);
-        }
-      `
-    });
-
     AFRAME.registerComponent("ophelia-controller", {
       init() {
-        this._phase="idle";
-        this._ctx=null; this._streamSrc=null;
-        this._dripTimer=null; this._twistTimer=null;
-        this._onFound=this._onFound.bind(this);
-        this._onLost =this._onLost.bind(this);
+        this._phase = "idle";
+        this._audio = null;
+
+        this._onFound = this._onFound.bind(this);
+        this._onLost  = this._onLost.bind(this);
         this.el.sceneEl.addEventListener("xrimagefound",   this._onFound);
         this.el.sceneEl.addEventListener("xrimageupdated", this._onFound);
         this.el.sceneEl.addEventListener("xrimagelost",    this._onLost);
-        this._initAudio();
-      },
 
-      _initAudio() {
-        try {
-          const ctx=new (window.AudioContext||window.webkitAudioContext)();
-          this._ctx=ctx;
-          const len=ctx.sampleRate*5;
-          const buf=ctx.createBuffer(1,len,ctx.sampleRate);
-          const d=buf.getChannelData(0);
-          let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
-          for(let i=0;i<len;i++){
-            const w=Math.random()*2-1;
-            b0=0.99886*b0+w*0.0555179; b1=0.99332*b1+w*0.0750759;
-            b2=0.96900*b2+w*0.1538520; b3=0.86650*b3+w*0.3104856;
-            b4=0.55000*b4+w*0.5329522; b5=-0.7616*b5-w*0.0168980;
-            d[i]=(b0+b1+b2+b3+b4+b5+b6+w*0.5362)*0.12; b6=w*0.115926;
-          }
-          this._streamBuf=buf;
-          this._streamGain=ctx.createGain(); this._streamGain.gain.value=0;
-          this._dripGain  =ctx.createGain(); this._dripGain.gain.value=0;
-          const lpf=ctx.createBiquadFilter(); lpf.type="lowpass"; lpf.frequency.value=700;
-          const cLen=ctx.sampleRate*2;
-          const cBuf=ctx.createBuffer(2,cLen,ctx.sampleRate);
-          for(let ch=0;ch<2;ch++){const cd=cBuf.getChannelData(ch);for(let i=0;i<cLen;i++)cd[i]=(Math.random()*2-1)*Math.pow(1-i/cLen,1.8);}
-          const conv=ctx.createConvolver(); conv.buffer=cBuf;
-          lpf.connect(conv); conv.connect(this._streamGain); this._streamGain.connect(ctx.destination);
-          this._dripGain.connect(ctx.destination);
-          this._lpf=lpf;
-        } catch(e){console.warn("Audio init",e);}
-      },
-
-      _startStream() {
-        if(!this._ctx) return;
-        if(this._ctx.state==="suspended") this._ctx.resume();
-        if(this._streamSrc){try{this._streamSrc.stop();}catch(e){}}
-        this._streamSrc=this._ctx.createBufferSource();
-        this._streamSrc.buffer=this._streamBuf;
-        this._streamSrc.loop=true;
-        this._streamSrc.connect(this._lpf);
-        this._streamSrc.start();
-        this._streamGain.gain.cancelScheduledValues(this._ctx.currentTime);
-        this._streamGain.gain.linearRampToValueAtTime(0.5, this._ctx.currentTime+2);
-        this._phase="stream";
-        this._twistTimer=setTimeout(()=>this._startTwist(), 6000);
-      },
-
-      _startTwist() {
-        if(!this._ctx) return;
-        const now=this._ctx.currentTime;
-        this._phase="drip";
-        this._streamGain.gain.linearRampToValueAtTime(0, now+2.5);
-        this._dripGain.gain.linearRampToValueAtTime(0.8, now+2.5);
-        const ni=document.getElementById("note-inner");
-        if(ni) ni.innerHTML=`
-          <h3>— Elizabeth Siddall — 1851 —</h3>
-          <p>Oil lamps extinguished.<br>
-          Core temperature: <em>declining</em>.<br>
-          Exposure duration: unknown.</p>
-        `;
-        this._drip();
-        this._dripTimer=setInterval(()=>this._drip(), 1350);
-      },
-
-      _drip() {
-        if(!this._ctx) return;
-        const now=this._ctx.currentTime;
-        const osc=this._ctx.createOscillator();
-        const env=this._ctx.createGain();
-        const del=this._ctx.createDelay();
-        const fb =this._ctx.createGain();
-        osc.type="sine"; osc.frequency.value=860+Math.random()*140;
-        env.gain.setValueAtTime(0,now);
-        env.gain.linearRampToValueAtTime(0.35,now+0.008);
-        env.gain.exponentialRampToValueAtTime(0.001,now+0.9);
-        del.delayTime.value=0.22; fb.gain.value=0.42;
-        del.connect(fb); fb.connect(del);
-        osc.connect(env); env.connect(this._dripGain); env.connect(del); del.connect(this._dripGain);
-        osc.start(now); osc.stop(now+1.2);
-      },
-
-      _stopAll() {
-        if(this._twistTimer) clearTimeout(this._twistTimer);
-        if(this._dripTimer)  clearInterval(this._dripTimer);
-        if(this._streamSrc)  {try{this._streamSrc.stop();}catch(e){}}
-        if(this._streamGain) this._streamGain.gain.value=0;
-        if(this._dripGain)   this._dripGain.gain.value=0;
-        this._phase="idle";
+        // Preload audio
+        this._audio = new Audio("assets/Ar-sound.mp3");
+        this._audio.loop = true;
+        this._audio.volume = 0;
       },
 
       _onFound(evt) {
-        if(evt.detail.name!==TARGET_NAME) return;
-        const p=document.getElementById("thermal-plane");
-        if(p){
-          p.setAttribute("visible",true);
-          p.setAttribute("animation__op","property: material.opacity; from: 0; to: 0.92; dur: 1600; easing: easeInQuad");
+        if (evt.detail.name !== TARGET_NAME) return;
+
+        // Show video plane
+        const plane = document.getElementById("video-plane");
+        if (plane) {
+          plane.setAttribute("visible", true);
+          plane.setAttribute("animation__op",
+            "property: material.opacity; from: 0; to: 1; dur: 1200; easing: easeInQuad"
+          );
         }
+
+        // Play the video
+        const vid = document.getElementById("ar-video");
+        if (vid) {
+          vid.play().catch(e => console.warn("Video play error:", e));
+        }
+
+        // Play and fade in audio
+        if (this._audio) {
+          this._audio.play().catch(e => console.warn("Audio play error:", e));
+          this._fadeAudio(0, 1, 2000);
+        }
+
+        // HUD
         document.getElementById("scan-prompt").classList.add("hidden");
         document.getElementById("note").classList.remove("hidden");
-        if(this._phase==="idle") this._startStream();
+
+        this._phase = "playing";
       },
 
       _onLost(evt) {
-        if(evt.detail.name!==TARGET_NAME) return;
-        const p=document.getElementById("thermal-plane");
-        if(p) p.setAttribute("visible",false);
+        if (evt.detail.name !== TARGET_NAME) return;
+
+        // Hide video
+        const plane = document.getElementById("video-plane");
+        if (plane) plane.setAttribute("visible", false);
+
+        // Pause video
+        const vid = document.getElementById("ar-video");
+        if (vid) vid.pause();
+
+        // Fade out and pause audio
+        if (this._audio) {
+          this._fadeAudio(this._audio.volume, 0, 800, () => {
+            this._audio.pause();
+            this._audio.currentTime = 0;
+          });
+        }
+
         document.getElementById("scan-prompt").classList.remove("hidden");
         document.getElementById("note").classList.add("hidden");
-        this._stopAll();
+        this._phase = "idle";
+      },
+
+      _fadeAudio(from, to, duration, callback) {
+        if (!this._audio) return;
+        const steps = 30;
+        const stepTime = duration / steps;
+        const stepSize = (to - from) / steps;
+        let current = from;
+        let count = 0;
+        const interval = setInterval(() => {
+          current += stepSize;
+          count++;
+          this._audio.volume = Math.max(0, Math.min(1, current));
+          if (count >= steps) {
+            clearInterval(interval);
+            if (callback) callback();
+          }
+        }, stepTime);
       },
 
       remove() {
-        this._stopAll();
+        if (this._audio) { this._audio.pause(); this._audio = null; }
         this.el.sceneEl.removeEventListener("xrimagefound",   this._onFound);
         this.el.sceneEl.removeEventListener("xrimageupdated", this._onFound);
         this.el.sceneEl.removeEventListener("xrimagelost",    this._onLost);
@@ -321,8 +232,8 @@
     </div>
     <div id="note" class="hidden">
       <div id="note-inner">
-        <h3>— Thermal Imaging Active —</h3>
-        <p>Body heat dissipation detected.<br>Water temperature: <em>critical</em>.</p>
+        <h3>— Elizabeth Siddall — 1851 —</h3>
+        <p>Oil lamps extinguished.<br>Core temperature: <em>declining</em>.<br>Exposure duration: unknown.</p>
       </div>
     </div>
   </div>
@@ -337,47 +248,46 @@
 
     <a-assets>
       <img id="ophelia-img" src="assets/Ophelia_target.jpg" crossorigin="anonymous" />
+      <!--
+        La vidéo est en autoplay=false, elle sera déclenchée par JS
+        playsinline est obligatoire sur iOS
+      -->
+      <video
+        id="ar-video"
+        src="assets/arvideo.mp4"
+        playsinline
+        webkit-playsinline
+        loop
+        muted
+        crossorigin="anonymous"
+        preload="auto">
+      </video>
     </a-assets>
 
     <a-camera position="0 4 10"></a-camera>
 
     <xrextras-named-image-target name="ophelia-print">
 
-      <!-- Overlay thermique : position="0 0 0.001" pour être juste devant l'image
-           rotation="0 0 0" car l'image est sur un écran vertical
-           width/height = ratio exact 640/480 = 1.333
-           scale réduit pour coller à la taille de l'image sur l'écran -->
+      <!--
+        Plan vidéo superposé au tableau.
+        - rotation="0 0 0" : face à la caméra (image sur écran vertical)
+        - width=1.333 height=1.0 : ratio 640/480
+        - position="0 0 0.001" : juste devant l'image trigger
+        - La vidéo est liée via material src=#ar-video
+      -->
       <a-entity
-        id="thermal-plane"
+        id="video-plane"
         visible="false"
-        geometry="primitive: plane; width: 1; height: 1.5"
+        geometry="primitive: plane; width: 1.333; height: 1.0"
         position="0 0 0.001"
-        rotation="0 0 90"
-        material="shader: thermal; src: #ophelia-img; opacity: 0; transparent: true">
+        rotation="0 0 0"
+        material="src: #ar-video; opacity: 0; transparent: true">
       </a-entity>
 
-      <a-text
-        value="CORE: 35.1°C ↓"
-        color="#5ab4d6"
-        width="0.4"
-        position="0.45 0.35 0.01"
-        rotation="0 0 0"
-        align="center"
-        animation="property: color; from: #5ab4d6; to: #1a3a6e; dir: alternate; loop: true; dur: 1100">
-      </a-text>
-
-      <a-text
-        value="WATER ZONE — CRITICAL HYPOTHERMIA"
-        color="#0a4a8e"
-        width="0.8"
-        position="0 -0.35 0.01"
-        rotation="0 0 0"
-        align="center">
-      </a-text>
-
+      <!-- Ligne de scan FLIR -->
       <a-entity
         geometry="primitive: plane; width: 1.333; height: 0.004"
-        material="color: #5ab4d6; opacity: 0.4; transparent: true"
+        material="color: #5ab4d6; opacity: 0.35; transparent: true"
         position="0 -0.5 0.01"
         rotation="0 0 0"
         animation="property: position; from: 0 -0.5 0.01; to: 0 0.5 0.01; loop: true; dur: 3000; easing: linear">
@@ -391,7 +301,7 @@
     document.getElementById("btn-launch").addEventListener("click", () => {
       document.getElementById("landing").classList.add("hidden");
       document.getElementById("hud").classList.add("active");
-      setTimeout(() => document.getElementById("landing").style.display="none", 900);
+      setTimeout(() => document.getElementById("landing").style.display = "none", 900);
     });
   </script>
 
