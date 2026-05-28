@@ -152,9 +152,9 @@
           plane.setAttribute("visible", true);
 
           plane.setAttribute(
-            "animation__op",
-            "property: material.opacity; from: 0; to: 0.95; dur: 1200; easing: easeInQuad"
-          );
+  "animation__op",
+  "property: material.opacity; from: 0; to: 1; dur: 1200; easing: easeInQuad"
+);
         }
 
         /* AUDIO */
@@ -210,7 +210,7 @@
         const plane = document.querySelector("#video-plane");
 
         if (plane) {
-          plane.setAttribute("visible", false);
+          plane.setAttribute("material", "opacity", 0);
         }
 
         this._fadeVol(0, 800);
@@ -364,11 +364,12 @@
       </a-text>
 
       <a-entity
-        geometry="primitive: plane; width: 1.333; height: 0.004"
-        material="color: #5ab4d6; opacity: 0.4; transparent: true"
-        position="0 -0.5 0.01"
-        animation="property: position; from: 0 -0.5 0.01; to: 0 0.5 0.01; loop: true; dur: 3000; easing: linear">
-      </a-entity>
+      id="video-plane"
+      geometry="primitive: plane; width: 1.333; height: 1"
+      position="0 0 0.001"
+      rotation="0 0 -90"
+      material="shader: flat; src: #ar-video; transparent: true; opacity: 0">
+    </a-entity>
 
     </xrextras-named-image-target>
 
