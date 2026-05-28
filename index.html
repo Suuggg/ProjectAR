@@ -69,7 +69,7 @@
 
   <script>
     const TARGET_NAME  = "ophelia-print";
-    const TARGET_IMAGE = "Ophelia_target.jpg"; /* fichiers à la racine */
+    const TARGET_IMAGE = "assets/Ophelia_target.jpg"; /* fichiers à la racine */
 
     const onxrloaded = () => {
       XR8.XrController.configure({
@@ -193,7 +193,7 @@
 <body>
 
   <!-- Son : pas d'autoplay, déclenché uniquement au scan -->
-  <audio id="ar-audio" src="Ar-sound.mp3" loop preload="auto" style="display:none;"></audio>
+  <audio id="ar-audio" src="assets/Ar-sound.mp3" loop preload="auto" style="display:none;"></audio>
 
   <div id="landing">
     <div class="stamp">Confidential Medical Archive</div>
@@ -247,7 +247,7 @@
     xrweb="disableWorldTracking: true">
 
     <a-assets timeout="30000">
-      <img id="ophelia-img" src="Ophelia_target.jpg" crossorigin="anonymous" />
+      <img id="ophelia-img" src="assets/Ophelia_target.jpg" crossorigin="anonymous" />
       <!--
         Vidéo dans a-assets = A-Frame gère la VideoTexture automatiquement.
         Fichier à la racine (pas dans assets/).
@@ -255,7 +255,7 @@
       -->
       <video
         id="ar-video"
-        src="arvideo.mp4"
+        src="assets/arvideo.mp4"
         loop muted playsinline webkit-playsinline
         preload="auto"
         crossorigin="anonymous">
