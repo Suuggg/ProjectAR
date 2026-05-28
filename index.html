@@ -273,14 +273,19 @@
 
         Si elle apparaît dans le mauvais sens, essaie rotation="0 0 -90"
       -->
+      <!--
+        Vidéo filmée en portrait (9:16).
+        On affiche un plan en paysage (1.333 x 1) qui couvre le tableau 4:3.
+        rotation="0 0 -90" pivote le contenu portrait → paysage.
+      -->
       <a-video
         id="video-plane"
         visible="false"
         src="#ar-video"
-        width="1"
-        height="1.333"
+        width="1.333"
+        height="1"
         position="0 0 0.002"
-        rotation="0 0 90"
+        rotation="0 0 -90"
         material="opacity: 0; transparent: true; side: double">
       </a-video>
 
@@ -317,6 +322,12 @@
       document.getElementById("landing").classList.add("hidden");
       document.getElementById("hud").classList.add("active");
       setTimeout(() => document.getElementById("landing").style.display = "none", 900);
+
+      /* Safari iOS : débloquer les médias depuis le geste utilisateur */
+      const vid = document.getElementById("ar-video");
+      if (vid) vid.play().then(() => { vid.pause(); vid.currentTime = 0; }).catch(() => {});
+      const aud = document.getElementById("ar-audio");
+      if (aud) aud.play().then(() => { aud.pause(); aud.currentTime = 0; }).catch(() => {});
     });
   </script>
 
