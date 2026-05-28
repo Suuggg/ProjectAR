@@ -67,6 +67,33 @@
   </script>
 
   <script>
+    /*
+      Shader "flat-video" : identique au shader original (qui fonctionnait),
+      mais au lieu du filtre thermique on affiche juste la texture src telle quelle.
+      C'est le même pipeline WebGL que le shader thermique — donc ça marche.
+    */
+    AFRAME.registerShader("flat-video", {
+      schema: {
+        src:     { type: "map" },
+        opacity: { type: "number", default: 0, is: "uniform" }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+      `,
+      fragmentShader: `
+        uniform sampler2D src;
+        uniform float opacity;
+        varying vec2 vUv;
+        void main() {
+          /* Rotation 90° dans le shader : on pivote les UVs */
+          vec2 uv = vec2(vUv.y, 1.0 - vUv.x);
+          vec4 col = texture2D(src, uv);
+          gl_FragColor = vec4(col.rgb, opacity);
+        }
+      `
+    });
+
     AFRAME.registerComponent("ophelia-controller", {
       init() {
         this._active = false;
@@ -78,9 +105,7 @@
       },
 
       _fadeAudio(aud, to, ms) {
-        const from = aud.volume;
-        const diff = to - from;
-        const steps = 30;
+        const from = aud.volume, diff = to - from, steps = 30;
         let s = 0;
         clearInterval(this._fadeInt);
         this._fadeInt = setInterval(() => {
@@ -98,20 +123,20 @@
         const vid   = document.getElementById("ar-video");
         const aud   = document.getElementById("ar-audio");
 
-        /* Affiche le plan */
+        /* Affiche et fade-in le plan */
         if (plane) {
           plane.setAttribute("visible", true);
           plane.setAttribute("animation__op",
             "property: material.opacity; from: 0; to: 0.95; dur: 1200; easing: easeInQuad");
         }
 
-        /* Lance la vidéo */
+        /* Lance la vidéo — déjà débloquée par le geste sur le bouton */
         if (vid) {
           vid.currentTime = 0;
           vid.play().catch(e => console.warn("vid:", e));
         }
 
-        /* Lance le son uniquement au scan */
+        /* Son uniquement au scan */
         if (aud) {
           aud.volume = 0;
           aud.currentTime = 0;
@@ -121,7 +146,6 @@
 
         document.getElementById("scan-prompt").classList.add("hidden");
         document.getElementById("note").classList.remove("hidden");
-
         clearTimeout(this._noteTimer);
         this._noteTimer = setTimeout(() => {
           const ni = document.getElementById("note-inner");
@@ -161,12 +185,7 @@
 
 <body>
 
-  <!-- Médias hors écran, pas d'autoplay -->
-  <video id="ar-video" src="assets/arvideo.mp4"
-    loop muted playsinline webkit-playsinline preload="auto"
-    style="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;"></video>
-  <audio id="ar-audio" src="assets/Ar-sound.mp3"
-    loop preload="auto" style="display:none;"></audio>
+  <audio id="ar-audio" src="assets/Ar-sound.mp3" loop preload="auto" style="display:none;"></audio>
 
   <div id="landing">
     <div class="stamp">Confidential Medical Archive</div>
@@ -180,7 +199,7 @@
       <div>Exposure duration : <span>Undetermined</span></div>
     </div>
     <div class="instruction-box">
-      <p>Point your camera at the<br><strong>Ophelia</strong> print inside the dossier.<br><br>
+      <p>Point your camera at the<br><strong>Ophelia</strong> print.<br><br>
       La vidéo s'active automatiquement.<br><strong>Active le son de ton téléphone.</strong></p>
     </div>
     <button class="btn-launch" id="btn-launch">↳ Activate AR Camera</button>
@@ -212,9 +231,15 @@
 
     <a-assets timeout="30000">
       <img id="ophelia-img" src="assets/Ophelia_target.jpg" crossorigin="anonymous" />
-      <!-- La vidéo dans a-assets = A-Frame crée automatiquement la VideoTexture -->
-      <video id="ar-video-asset" src="assets/arvideo.mp4"
-        loop muted playsinline webkit-playsinline
+      <!--
+        La vidéo dans a-assets avec autoplay muted.
+        8th Wall / A-Frame gère automatiquement la VideoTexture via src="#ar-video".
+        autoplay est nécessaire ici pour que A-Frame initialise la texture —
+        le vrai play/pause est contrôlé par le composant JS.
+      -->
+      <video id="ar-video"
+        src="assets/arvideo.mp4"
+        autoplay loop muted playsinline webkit-playsinline
         preload="auto" crossorigin="anonymous">
       </video>
     </a-assets>
@@ -224,21 +249,19 @@
     <xrextras-named-image-target name="ophelia-print">
 
       <!--
-        Vidéo portrait (9:16) affichée en paysage sur le tableau (4:3).
-        - width=1.333 height=1 → format paysage
-        - rotation="0 0 -90" → pivote le contenu portrait en paysage
-        - src="#ar-video-asset" → texture gérée nativement par A-Frame
+        shader: flat-video → même pipeline que le shader thermique original.
+        La rotation 90° est faite dans les UVs du shader (vec2(vUv.y, 1.0-vUv.x)).
+        width=1.333 height=1 → ratio paysage sur le tableau 4:3.
+        rotation="0 0 0" → pas de rotation 3D, tout se passe dans le shader.
       -->
-      <a-video
+      <a-entity
         id="video-plane"
         visible="false"
-        src="#ar-video-asset"
-        width="1.333"
-        height="1"
+        geometry="primitive: plane; width: 1.333; height: 1"
         position="0 0 0.002"
-        rotation="0 0 -90"
-        material="opacity: 0; transparent: true; side: double">
-      </a-video>
+        rotation="0 0 0"
+        material="shader: flat-video; src: #ar-video; opacity: 0; transparent: true">
+      </a-entity>
 
       <a-text value="CORE: 35.1°C ↓" color="#5ab4d6" width="0.4"
         position="0.45 0.35 0.01" align="center"
@@ -263,16 +286,11 @@
       document.getElementById("hud").classList.add("active");
       setTimeout(() => document.getElementById("landing").style.display = "none", 900);
 
-      /*
-        Déblocage Safari iOS : un play()+pause() depuis le geste utilisateur
-        autorise les play() ultérieurs déclenchés par le scan.
-      */
-      const vid  = document.getElementById("ar-video");
-      const vidA = document.getElementById("ar-video-asset");
-      const aud  = document.getElementById("ar-audio");
-      [vid, vidA, aud].forEach(el => {
-        if (el) el.play().then(() => { el.pause(); el.currentTime = 0; }).catch(() => {});
-      });
+      /* Déblocage Safari iOS depuis le geste utilisateur */
+      const vid = document.getElementById("ar-video");
+      const aud = document.getElementById("ar-audio");
+      if (vid) vid.play().then(() => { vid.pause(); vid.currentTime = 0; }).catch(() => {});
+      if (aud) aud.play().then(() => { aud.pause(); aud.currentTime = 0; }).catch(() => {});
     });
   </script>
 
