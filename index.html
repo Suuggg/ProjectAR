@@ -107,15 +107,18 @@
 
         // Vidéo HTML — DOIT être muted pour autoplay sur mobile
         this._vid = document.createElement("video");
-        this._vid.src              = "assets/arvideo.mp4";
-        this._vid.loop             = true;
-        this._vid.muted            = true;   // obligatoire sur iOS
-        this._vid.playsInline      = true;
+        this._vid.src         = "assets/arvideo.mp4";
+        this._vid.loop        = true;
+        this._vid.muted       = true;
+        this._vid.playsInline = true;
         this._vid.setAttribute("playsinline", "");
         this._vid.setAttribute("webkit-playsinline", "");
-        this._vid.crossOrigin      = "anonymous";
-        this._vid.preload          = "auto";
+        this._vid.crossOrigin = "anonymous";
+        this._vid.preload     = "auto";
+        // Visible dans le DOM mais hors écran — obligatoire iOS pour VideoTexture
+        this._vid.style.cssText = "position:fixed;width:1px;height:1px;opacity:0.01;top:0;left:0;";
         document.body.appendChild(this._vid);
+        this._vid.load();
 
         // Créer la VideoTexture THREE.js UNE seule fois
         this._texture = new THREE.VideoTexture(this._vid);
@@ -304,7 +307,7 @@
         visible="false"
         geometry="primitive: plane; width: 1.778; height: 1"
         position="0 0 0.001"
-        rotation="0 0 0">
+        rotation="0 0 90">
       </a-entity>
 
     </xrextras-named-image-target>
