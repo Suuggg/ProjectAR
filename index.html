@@ -79,6 +79,13 @@
   </script>
 
   <script>
+    /*
+      Pattern exact du README du cours (section "Adding your own assets") :
+      - video dans <a-assets> avec autoplay muted playsinline
+      - référencé par #id dans le material
+      - play/pause contrôlé par le composant JS
+      - audio via new Audio() — pattern exact de l'exemple 06_audio
+    */
     AFRAME.registerComponent("ophelia-controller", {
       init() {
         this._onFound = this._onFound.bind(this);
@@ -87,71 +94,23 @@
         this.el.sceneEl.addEventListener("xrimageupdated", this._onFound);
         this.el.sceneEl.addEventListener("xrimagelost",    this._onLost);
 
-        /*
-          On NE crée PAS le son ici.
-          Il sera créé uniquement au moment du scan dans _onFound,
-          après que le bouton ait débloqué le contexte audio.
-        */
-        this._sound = null;
-        this._fi    = null;
-        this._t     = null;
-      },
-
-      _getSound() {
-        /* Crée l'objet Audio une seule fois, après le tap utilisateur */
-        if (!this._sound) {
-          this._sound = new Audio("assets/Ar-sound.mp3");
-          this._sound.loop   = true;
-          this._sound.volume = 0;
-        }
-        return this._sound;
-      },
-
-      _fadeVol(target, ms) {
-        const snd  = this._getSound();
-        const from = snd.volume;
-        const diff = target - from;
-        const steps = 30;
-        let s = 0;
-        clearInterval(this._fi);
-        this._fi = setInterval(() => {
-          s++;
-          snd.volume = Math.min(1, Math.max(0, from + diff * s / steps));
-          if (s >= steps) {
-            clearInterval(this._fi);
-            if (target === 0) {
-              snd.pause();
-              snd.currentTime = 0;
-            }
-          }
-        }, ms / steps);
       },
 
       _onFound(evt) {
         if (evt.detail.name !== TARGET_NAME) return;
 
-        /* Vidéo */
+        /* Vidéo : récupère l'élément depuis a-assets et lance-le */
         const vid = document.querySelector("#ar-video");
         if (vid) {
           vid.play().catch(e => console.warn("video play:", e));
         }
 
-        /* Plan */
+        /* Plan : rend visible */
         const plane = document.querySelector("#video-plane");
         if (plane) {
           plane.setAttribute("visible", true);
           plane.setAttribute("animation__op",
             "property: material.opacity; from: 0; to: 0.95; dur: 1200; easing: easeInQuad");
-        }
-
-        /* Son — uniquement si le contexte audio a été débloqué par le tap bouton */
-        if (window._audioContextUnlocked) {
-          const snd = this._getSound();
-          clearInterval(this._fi);
-          snd.volume = 0;
-          snd.currentTime = 0;
-          snd.play().catch(e => console.warn("audio play:", e));
-          this._fadeVol(0.8, 2000);
         }
 
         document.getElementById("scan-prompt").classList.add("hidden");
@@ -169,21 +128,11 @@
       _onLost(evt) {
         if (evt.detail.name !== TARGET_NAME) return;
 
-        /* Vidéo */
         const vid = document.querySelector("#ar-video");
         if (vid) vid.pause();
 
-        /* Plan */
         const plane = document.querySelector("#video-plane");
         if (plane) plane.setAttribute("visible", false);
-
-        /* Son — stop immédiat, pas de fade qui peut se croiser */
-        clearInterval(this._fi);
-        if (this._sound) {
-          this._sound.pause();
-          this._sound.currentTime = 0;
-          this._sound.volume = 0;
-        }
 
         document.getElementById("scan-prompt").classList.remove("hidden");
         document.getElementById("note").classList.add("hidden");
@@ -192,7 +141,6 @@
 
       remove() {
         clearTimeout(this._t);
-        clearInterval(this._fi);
         this.el.sceneEl.removeEventListener("xrimagefound",   this._onFound);
         this.el.sceneEl.removeEventListener("xrimageupdated", this._onFound);
         this.el.sceneEl.removeEventListener("xrimagelost",    this._onLost);
@@ -247,6 +195,7 @@
 
     <a-assets timeout="30000">
       <img id="ophelia-img" src="assets/Ophelia_target.jpg" crossorigin="anonymous" />
+      <!-- Pattern exact du README cours section "Adding your own assets" -->
       <video id="ar-video"
         src="assets/arvideo.mp4"
         loop muted playsinline webkit-playsinline
@@ -259,6 +208,11 @@
 
     <xrextras-named-image-target name="ophelia-print">
 
+      <!--
+        material="src: #ar-video" — référence directe à la vidéo dans a-assets.
+        rotation="0 0 -90" — vidéo portrait → paysage.
+        width=1.333 height=1 — ratio 4:3 du tableau.
+      -->
       <a-entity
         id="video-plane"
         visible="false"
@@ -291,26 +245,11 @@
       document.getElementById("hud").classList.add("active");
       setTimeout(() => document.getElementById("landing").style.display = "none", 900);
 
-      /*
-        Déblocage du contexte audio mobile au moment du tap utilisateur.
-        On crée un AudioContext silencieux juste pour débloquer le navigateur.
-        Aucun son ne joue ici — le vrai son sera créé dans _onFound au moment du scan.
-      */
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const buf = ctx.createBuffer(1, 1, 22050);
-        const src = ctx.createBufferSource();
-        src.buffer = buf;
-        src.connect(ctx.destination);
-        src.start(0);
-        ctx.resume().then(() => {
-          window._audioContextUnlocked = true;
-          console.log("Audio context unlocked ✓");
-        });
-      } catch(e) {
-        /* Navigateur sans AudioContext — on pose quand même le flag */
-        window._audioContextUnlocked = true;
-      }
+      /* Son en continu dès le lancement — déclenché depuis le geste utilisateur */
+      const snd = new Audio("assets/Ar-sound.mp3");
+      snd.loop = true;
+      snd.volume = 0.8;
+      snd.play().catch(e => console.warn("audio:", e));
     });
   </script>
 
